@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class AuthViewModel: ObservableObject {
@@ -8,7 +9,18 @@ final class AuthViewModel: ObservableObject {
     @Published var nom = ""
     @Published var passwordConfirmation = ""
 
+    @Published private(set) var isLoading = false
+    @Published private(set) var errorMessage: String?
+
     private let authService = AuthService.shared
+    private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        authService.$isLoading
+            .assign(to: &$isLoading)
+        authService.$errorMessage
+            .assign(to: &$errorMessage)
+    }
 
     func login() async {
         await authService.login(email: email, password: password)
