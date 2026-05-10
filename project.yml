@@ -6,6 +6,12 @@ options:
   developmentLanguage: fr
   createIntermediateGroups: true
 
+packages:
+  Alamofire:
+    url: https://github.com/Alamofire/Alamofire.git
+    from: "5.9.0"
+    # Planned for future phase: HTTP request abstraction and advanced networking features
+
 settings:
   base:
     DEVELOPMENT_TEAM: ""  # Set in Xcode after import
@@ -21,6 +27,8 @@ targets:
       - path: ReveEtVoyage
         excludes:
           - "Info.plist"
+    dependencies:
+      - package: Alamofire
     settings:
       base:
         PRODUCT_NAME: ReveEtVoyage
