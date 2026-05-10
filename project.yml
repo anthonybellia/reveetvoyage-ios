@@ -1,0 +1,61 @@
+name: ReveEtVoyage
+options:
+  bundleIdPrefix: be.reveetvoyage
+  deploymentTarget:
+    iOS: "15.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: ""  # Set in Xcode after import
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  ReveEtVoyage:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ReveEtVoyage
+        excludes:
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_NAME: ReveEtVoyage
+        PRODUCT_BUNDLE_IDENTIFIER: be.reveetvoyage.app
+        INFOPLIST_FILE: ReveEtVoyage/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        GENERATE_INFOPLIST_FILE: NO
+
+  ReveEtVoyageTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ReveEtVoyageTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: be.reveetvoyage.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: ReveEtVoyage
+
+  ReveEtVoyageUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ReveEtVoyageUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: be.reveetvoyage.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: ReveEtVoyage
+    dependencies:
+      - target: ReveEtVoyage
