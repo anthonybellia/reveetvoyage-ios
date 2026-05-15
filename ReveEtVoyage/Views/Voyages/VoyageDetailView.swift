@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 struct VoyageDetailView: View {
     @StateObject private var viewModel: VoyageDetailViewModel
@@ -336,10 +337,91 @@ struct EtapeRow: View {
                     }
                     .foregroundColor(.revOrange)
                 }
+
+                if etape.hasCoordinates,
+                   let lat = etape.latitude, let lng = etape.longitude {
+                    EtapeMiniMap(latitude: lat, longitude: lng,
+                                 title: etape.titre, address: etape.adresse ?? etape.lieu)
+                        .padding(.top, 6)
+                }
             }
         }
         .opacity(etape.is_completed ? 0.75 : 1)
     }
+}
+
+struct EtapeMiniMap: View {
+    let latitude: Double
+    let longitude: Double
+    let title: String
+    let address: String?
+
+    private var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    @State private var region: MKCoordinateRegion
+
+    init(latitude: Double, longitude: Double, title: String, address: String?) {
+        self.latitude = latitude
+        self.longitude = longitude
+        self.title = title
+        self.address = address
+        _region = State(initialValue: MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        ))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Map(coordinateRegion: .constant(region),
+                interactionModes: [],
+                annotationItems: [MapPin(coordinate: coordinate)]) { pin in
+                MapAnnotation(coordinate: pin.coordinate) {
+                    ZStack {
+                        Circle().fill(Color.revOrange).frame(width: 28, height: 28)
+                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        Image(systemName: "mappin")
+                            .foregroundColor(.white)
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                }
+            }
+            .frame(height: 110)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
+            )
+
+            Button {
+                openInMaps()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.up.right.square.fill")
+                        .font(.system(size: 11))
+                    Text("Itinéraire")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundColor(.revOrange)
+            }
+        }
+    }
+
+    private func openInMaps() {
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let item = MKMapItem(placemark: placemark)
+        item.name = title
+        item.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+        ])
+    }
+}
+
+private struct MapPin: Identifiable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
 }
 
 // MARK: - Progress bar

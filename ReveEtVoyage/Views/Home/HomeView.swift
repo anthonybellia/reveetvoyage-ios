@@ -3,11 +3,13 @@ import SwiftUI
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var deepLink: DeepLinkRouter
     @State private var heroAppear: Bool = false
     @State private var unreadCount: Int = 0
+    @State private var navPath = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     heroHeader
@@ -44,6 +46,12 @@ struct HomeView: View {
             }
             .navigationDestination(for: Int.self) { id in
                 VoyageDetailView(voyageId: id)
+            }
+            .onChange(of: deepLink.pendingVoyageId) { newId in
+                if let newId {
+                    navPath.append(newId)
+                    deepLink.pendingVoyageId = nil
+                }
             }
         }
     }

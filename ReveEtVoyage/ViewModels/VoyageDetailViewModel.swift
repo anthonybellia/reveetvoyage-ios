@@ -24,6 +24,15 @@ final class VoyageDetailViewModel: ObservableObject {
             let v = try await voyageService.getVoyageDetail(id: voyageId)
             voyage = v
             etapes = v.etapes ?? []
+
+            // Schedule local reminders (J-15, J-7, J-2, J-1) only if user opted in
+            if AuthService.shared.currentUser?.notif_voyages ?? true {
+                if await NotificationManager.shared.requestAuthorizationIfNeeded() {
+                    await NotificationManager.shared.scheduleVoyage(v)
+                }
+            } else {
+                await NotificationManager.shared.cancelVoyage(v.id)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -80,6 +89,8 @@ extension VoyageEtape {
             lieu: lieu,
             lieu_retour: lieu_retour,
             adresse: adresse,
+            latitude: latitude,
+            longitude: longitude,
             cout: cout,
             cout_note: cout_note,
             connector_mode: connector_mode,

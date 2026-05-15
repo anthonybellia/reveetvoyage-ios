@@ -18,6 +18,8 @@ struct PassengerFormView: View {
     @State private var isDefault: Bool = false
     @State private var notes: String = ""
     @State private var isSaving: Bool = false
+    @State private var showScanner: Bool = false
+    @State private var scanError: String?
 
     enum DocType: String, CaseIterable, Identifiable {
         case none = ""
@@ -45,6 +47,38 @@ struct PassengerFormView: View {
                         DatePicker("Né(e) le", selection: $dateNaissance, displayedComponents: .date)
                     }
                     TextField("Nationalité", text: $nationalite)
+                }
+
+                Section {
+                    Button {
+                        showScanner = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "doc.text.viewfinder")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 32, height: 32)
+                                .background(
+                                    LinearGradient(colors: [.revOrange, .revRed],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Scanner mon document")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Passeport ou carte d'identité — auto-remplit")
+                                    .font(.caption)
+                                    .foregroundColor(.revTextSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.revTextSecondary.opacity(0.5))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    if let scanError {
+                        Text(scanError).font(.caption).foregroundColor(.revRed)
+                    }
                 }
 
                 Section("Document de voyage") {
@@ -94,7 +128,45 @@ struct PassengerFormView: View {
                 }
             }
             .onAppear { hydrateForm() }
+            .fullScreenCover(isPresented: $showScanner) {
+                NavigationStack {
+                    DocumentScannerView(
+                        onScanned: { rawText in
+                            showScanner = false
+                            applyScannedMRZ(rawText)
+                        },
+                        onCancel: {
+                            showScanner = false
+                            scanError = "Scanner non disponible"
+                        }
+                    )
+                    .ignoresSafeArea()
+                    .navigationTitle("Scan document")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Annuler") { showScanner = false }
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private func applyScannedMRZ(_ rawText: String) {
+        guard let parsed = MRZParser.parse(rawText: rawText) else {
+            scanError = "MRZ illisible — réessaye en cadrant bien le bas du document"
+            return
+        }
+        scanError = nil
+
+        if let v = parsed.surname, !v.isEmpty { nom = v }
+        if let v = parsed.givenNames, !v.isEmpty { prenom = v }
+        if let v = parsed.nationality, !v.isEmpty { nationalite = v }
+        if let v = parsed.dateOfBirth { dateNaissance = v; hasDateNaissance = true }
+        if let v = parsed.expirationDate { expirationDoc = v; hasExpirationDoc = true }
+        if let v = parsed.documentNumber, !v.isEmpty { numDoc = v }
+        if let docType = parsed.documentType, let dt = DocType(rawValue: docType) { typeDoc = dt }
     }
 
     private func hydrateForm() {

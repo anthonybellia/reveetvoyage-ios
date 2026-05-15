@@ -48,5 +48,9 @@
     </array>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
+    <key>NSCameraUsageDescription</key>
+    <string>Pour scanner ton passeport ou carte d'identité et auto-remplir tes informations passager.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Pour choisir ta photo de profil depuis ta photothèque.</string>
 </dict>
 </plist>
