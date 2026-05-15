@@ -30,6 +30,10 @@ enum APIConfig {
         // Messages (authenticated)
         static let messages = "/messages"
         static let messagesUnread = "/messages/unread-count"
+
+        // Settings
+        static let updatePassword    = "/auth/me/password"
+        static let updatePreferences = "/auth/me/preferences"
     }
 
     static let requestTimeout: TimeInterval = 30

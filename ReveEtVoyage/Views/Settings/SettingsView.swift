@@ -6,6 +6,9 @@ struct SettingsView: View {
     @State private var isLoggingOut: Bool = false
     @State private var showEditProfile: Bool = false
     @State private var showMessages: Bool = false
+    @State private var showChangePassword: Bool = false
+    @State private var showLanguage: Bool = false
+    @State private var showNotificationsSettings: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -57,8 +60,16 @@ struct SettingsView: View {
                 Text("Tu devras te reconnecter pour accéder à ton compte.")
             }
             .sheet(isPresented: $showEditProfile) {
-                EditProfileView()
-                    .environmentObject(authService)
+                EditProfileView().environmentObject(authService)
+            }
+            .sheet(isPresented: $showChangePassword) {
+                ChangePasswordView().environmentObject(authService)
+            }
+            .sheet(isPresented: $showLanguage) {
+                LanguageView().environmentObject(authService)
+            }
+            .sheet(isPresented: $showNotificationsSettings) {
+                NotificationsSettingsView().environmentObject(authService)
             }
             .navigationDestination(isPresented: $showMessages) {
                 MessagesView()
@@ -115,7 +126,7 @@ struct SettingsView: View {
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "lock.fill", title: "Mot de passe",
                             subtitle: "Modifier mon mot de passe", color: .revRed) {
-                    // TODO: future
+                    showChangePassword = true
                 }
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "envelope.fill", title: "Mes messages",
@@ -130,11 +141,23 @@ struct SettingsView: View {
         GlassCard(padding: 0) {
             VStack(spacing: 0) {
                 settingsRow(icon: "bell.fill", title: "Notifications",
-                            subtitle: "Gérer mes alertes", color: .revOrange) {}
+                            subtitle: "Email + rappels voyage", color: .revOrange) {
+                    showNotificationsSettings = true
+                }
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "globe", title: "Langue",
-                            subtitle: "Français", color: .revOrange) {}
+                            subtitle: currentLanguageLabel, color: .revOrange) {
+                    showLanguage = true
+                }
             }
+        }
+    }
+
+    private var currentLanguageLabel: String {
+        switch authService.currentUser?.language {
+        case "en": return "English"
+        case "nl": return "Nederlands"
+        default:   return "Français"
         }
     }
 

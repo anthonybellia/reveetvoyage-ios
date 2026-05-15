@@ -118,6 +118,49 @@ final class AuthService: ObservableObject {
         }
     }
 
+    // MARK: - Update password
+
+    func updatePassword(current: String, new: String, confirm: String) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        let body = UpdatePasswordRequest(
+            current_password: current,
+            password: new,
+            password_confirmation: confirm
+        )
+
+        do {
+            try await apiClient.postVoid(
+                path: APIConfig.Endpoints.updatePassword,
+                body: body,
+                requiresAuth: true
+            )
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    // MARK: - Update preferences
+
+    func updatePreferences(_ request: UpdatePreferencesRequest) async -> Bool {
+        do {
+            let me: MeResponse = try await apiClient.put(
+                path: APIConfig.Endpoints.updatePreferences,
+                body: request,
+                requiresAuth: true
+            )
+            currentUser = me.user
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     // MARK: - Forgot password
 
     func forgotPassword(email: String) async -> Bool {
@@ -183,6 +226,19 @@ struct UpdateProfileRequest: Encodable {
     let code_postal: String?
     let ville: String?
     let pays: String?
+}
+
+struct UpdatePasswordRequest: Encodable {
+    let current_password: String
+    let password: String
+    let password_confirmation: String
+}
+
+struct UpdatePreferencesRequest: Encodable {
+    let language: String?
+    let notif_emails: Bool?
+    let notif_promo: Bool?
+    let notif_voyages: Bool?
 }
 
 // MARK: - Response wrappers (matching real Laravel API shapes)
