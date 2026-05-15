@@ -4,6 +4,8 @@ struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @State private var showLogoutConfirm: Bool = false
     @State private var isLoggingOut: Bool = false
+    @State private var showEditProfile: Bool = false
+    @State private var showMessages: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -54,6 +56,13 @@ struct SettingsView: View {
             } message: {
                 Text("Tu devras te reconnecter pour accéder à ton compte.")
             }
+            .sheet(isPresented: $showEditProfile) {
+                EditProfileView()
+                    .environmentObject(authService)
+            }
+            .navigationDestination(isPresented: $showMessages) {
+                MessagesView()
+            }
         }
     }
 
@@ -63,7 +72,8 @@ struct SettingsView: View {
         GlassCard(padding: 22) {
             VStack(spacing: 14) {
                 if let user = authService.currentUser {
-                    AvatarView(firstName: user.prenom, lastName: user.nom, size: 80)
+                    AvatarView(firstName: user.prenom, lastName: user.nom,
+                               avatarPath: user.avatar, size: 80)
 
                     VStack(spacing: 3) {
                         Text(user.fullName)
@@ -99,13 +109,19 @@ struct SettingsView: View {
         GlassCard(padding: 0) {
             VStack(spacing: 0) {
                 settingsRow(icon: "person.fill", title: "Informations personnelles",
-                            subtitle: "Nom, email, téléphone", color: .revOrange)
+                            subtitle: "Nom, email, téléphone", color: .revOrange) {
+                    showEditProfile = true
+                }
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "lock.fill", title: "Mot de passe",
-                            subtitle: "Modifier mon mot de passe", color: .revRed)
+                            subtitle: "Modifier mon mot de passe", color: .revRed) {
+                    // TODO: future
+                }
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "envelope.fill", title: "Mes messages",
-                            subtitle: "Discussions avec l'équipe", color: .revYellow)
+                            subtitle: "Discussions avec l'équipe", color: .revYellow) {
+                    showMessages = true
+                }
             }
         }
     }
@@ -114,10 +130,10 @@ struct SettingsView: View {
         GlassCard(padding: 0) {
             VStack(spacing: 0) {
                 settingsRow(icon: "bell.fill", title: "Notifications",
-                            subtitle: "Gérer mes alertes", color: .revOrange)
+                            subtitle: "Gérer mes alertes", color: .revOrange) {}
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "globe", title: "Langue",
-                            subtitle: "Français", color: .revOrange)
+                            subtitle: "Français", color: .revOrange) {}
             }
         }
     }
@@ -126,21 +142,20 @@ struct SettingsView: View {
         GlassCard(padding: 0) {
             VStack(spacing: 0) {
                 settingsRow(icon: "doc.text.fill", title: "Conditions générales",
-                            subtitle: nil, color: .revTextSecondary)
+                            subtitle: nil, color: .revTextSecondary) {}
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "hand.raised.fill", title: "Confidentialité",
-                            subtitle: nil, color: .revTextSecondary)
+                            subtitle: nil, color: .revTextSecondary) {}
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "questionmark.circle.fill", title: "Aide",
-                            subtitle: nil, color: .revTextSecondary)
+                            subtitle: nil, color: .revTextSecondary) {}
             }
         }
     }
 
-    private func settingsRow(icon: String, title: String, subtitle: String?, color: Color) -> some View {
-        Button {
-            // TODO: navigate
-        } label: {
+    private func settingsRow(icon: String, title: String, subtitle: String?, color: Color,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .semibold))

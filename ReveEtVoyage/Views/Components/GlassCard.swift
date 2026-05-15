@@ -29,6 +29,7 @@ struct GlassCard<Content: View>: View {
 struct AvatarView: View {
     let firstName: String
     let lastName: String
+    var avatarPath: String? = nil
     var size: CGFloat = 44
 
     private var initials: String {
@@ -37,20 +38,39 @@ struct AvatarView: View {
         return (first + last).uppercased()
     }
 
+    private var avatarURL: URL? {
+        guard let path = avatarPath, !path.isEmpty else { return nil }
+        if path.hasPrefix("http") { return URL(string: path) }
+        let base = APIConfig.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+        return URL(string: base + path)
+    }
+
     var body: some View {
-        Text(initials)
-            .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
-            .foregroundColor(.white)
-            .frame(width: size, height: size)
-            .background(
-                LinearGradient(
-                    colors: [.revYellow, .revOrange, .revRed],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(Circle())
-            .shadow(color: Color.revOrange.opacity(0.3), radius: 6, x: 0, y: 3)
+        ZStack {
+            Circle()
+                .fill(LinearGradient(colors: [.revYellow, .revOrange, .revRed],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+
+            if let url = avatarURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    default:
+                        Text(initials)
+                            .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                }
+            } else {
+                Text(initials)
+                    .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .shadow(color: Color.revOrange.opacity(0.3), radius: 6, x: 0, y: 3)
     }
 }
 

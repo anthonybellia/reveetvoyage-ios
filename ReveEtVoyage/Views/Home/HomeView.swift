@@ -4,6 +4,7 @@ struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject var authService: AuthService
     @State private var heroAppear: Bool = false
+    @State private var unreadCount: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,7 @@ struct HomeView: View {
             .refreshable { await viewModel.loadData() }
             .task {
                 await viewModel.loadData()
+                await loadUnreadCount()
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
                     heroAppear = true
                 }
@@ -43,6 +45,14 @@ struct HomeView: View {
             .navigationDestination(for: Int.self) { id in
                 VoyageDetailView(voyageId: id)
             }
+        }
+    }
+
+    private func loadUnreadCount() async {
+        do {
+            unreadCount = try await MessageService.shared.unreadCount()
+        } catch {
+            unreadCount = 0
         }
     }
 
@@ -62,7 +72,8 @@ struct HomeView: View {
     private var heroHeader: some View {
         HStack(spacing: 14) {
             if let user = authService.currentUser {
-                AvatarView(firstName: user.prenom, lastName: user.nom, size: 52)
+                AvatarView(firstName: user.prenom, lastName: user.nom,
+                           avatarPath: user.avatar, size: 52)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Bonjour,")
@@ -75,11 +86,31 @@ struct HomeView: View {
             }
             Spacer()
 
-            Image("Icon")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 48, height: 48)
-                .opacity(0.9)
+            NavigationLink {
+                NotificationsView()
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.revBrown)
+                        .frame(width: 44, height: 44)
+                        .background(Color.revCardBackground)
+                        .clipShape(Circle())
+
+                    if unreadCount > 0 {
+                        Text("\(unreadCount)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 16, minHeight: 16)
+                            .background(Color.revRed)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.revBackground, lineWidth: 2))
+                            .offset(x: 4, y: -4)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
         }
         .opacity(heroAppear ? 1 : 0)
         .offset(y: heroAppear ? 0 : -10)

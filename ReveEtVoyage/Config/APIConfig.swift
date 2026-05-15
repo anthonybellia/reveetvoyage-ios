@@ -26,6 +26,10 @@ enum APIConfig {
 
         // Passengers (authenticated)
         static let passengers = "/passengers"
+
+        // Messages (authenticated)
+        static let messages = "/messages"
+        static let messagesUnread = "/messages/unread-count"
     }
 
     static let requestTimeout: TimeInterval = 30
