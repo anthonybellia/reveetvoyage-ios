@@ -77,4 +77,23 @@ final class MessagesViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
+
+    /// Send an attachment (image or PDF), optionally with body text.
+    func sendAttachment(data: Data, fileName: String, mime: String) async {
+        isSending = true
+        defer { isSending = false }
+        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let snapshotDraft = draft
+        draft = ""
+
+        do {
+            let message = try await service.sendAttachment(
+                body: body, fileData: data, fileName: fileName, mime: mime
+            )
+            messages.append(message)
+        } catch {
+            draft = snapshotDraft
+            errorMessage = error.localizedDescription
+        }
+    }
 }

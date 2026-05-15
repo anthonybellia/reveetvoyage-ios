@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 struct MessagesView: View {
     var initialDraft: String? = nil
@@ -6,6 +8,10 @@ struct MessagesView: View {
     @StateObject private var viewModel = MessagesViewModel()
     @FocusState private var inputFocused: Bool
     @Environment(\.dismiss) private var dismiss
+
+    @State private var photoItem: PhotosPickerItem? = nil
+    @State private var showDocPicker: Bool = false
+    @State private var showFilesHistory: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +38,12 @@ struct MessagesView: View {
                         .foregroundColor(.revBrown)
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showFilesHistory = true } label: {
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.revOrange)
+                }
+            }
         }
         .onAppear {
             viewModel.startPolling()
@@ -40,6 +52,56 @@ struct MessagesView: View {
             }
         }
         .onDisappear { viewModel.stopPolling() }
+        .onChange(of: photoItem) { newItem in
+            guard let newItem else { return }
+            Task { await handlePhoto(newItem) }
+        }
+        .fileImporter(
+            isPresented: $showDocPicker,
+            allowedContentTypes: [.pdf],
+            allowsMultipleSelection: false
+        ) { result in
+            handleDoc(result)
+        }
+        .navigationDestination(isPresented: $showFilesHistory) {
+            FilesView()
+        }
+    }
+
+    // MARK: - Attachment handlers
+
+    private func handlePhoto(_ item: PhotosPickerItem) async {
+        defer { photoItem = nil }
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            viewModel.errorMessage = "Image illisible"
+            return
+        }
+        let uti = item.supportedContentTypes.first
+        let ext = uti?.preferredFilenameExtension ?? "jpg"
+        let mime = uti?.preferredMIMEType ?? "image/jpeg"
+        await viewModel.sendAttachment(data: data, fileName: "photo.\(ext)", mime: mime)
+    }
+
+    private func handleDoc(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let didStart = url.startAccessingSecurityScopedResource()
+            defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url) {
+                Task {
+                    await viewModel.sendAttachment(
+                        data: data,
+                        fileName: url.lastPathComponent,
+                        mime: "application/pdf"
+                    )
+                }
+            } else {
+                viewModel.errorMessage = "Impossible de lire le fichier"
+            }
+        case .failure(let err):
+            viewModel.errorMessage = err.localizedDescription
+        }
     }
 
     private var messagesScroll: some View {
@@ -88,7 +150,26 @@ struct MessagesView: View {
     }
 
     private var inputBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            // Photo
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Image(systemName: "photo.fill.on.rectangle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.revOrange)
+                    .frame(width: 36, height: 36)
+                    .background(Color.revOrange.opacity(0.10))
+                    .clipShape(Circle())
+            }
+            // PDF / file
+            Button { showDocPicker = true } label: {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 18))
+                    .foregroundColor(.revOrange)
+                    .frame(width: 36, height: 36)
+                    .background(Color.revOrange.opacity(0.10))
+                    .clipShape(Circle())
+            }
+
             TextField("Ton message…", text: $viewModel.draft, axis: .vertical)
                 .focused($inputFocused)
                 .lineLimit(1...4)
@@ -141,14 +222,20 @@ struct MessageBubble: View {
         HStack {
             if message.isFromUser { Spacer(minLength: 50) }
 
-            VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 3) {
-                Text(message.body)
-                    .font(.system(size: 15, design: .rounded))
-                    .foregroundColor(message.isFromUser ? .white : .revText)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(bubbleBackground)
-                    .clipShape(BubbleShape(isFromUser: message.isFromUser))
+            VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 6) {
+                if message.hasAttachment {
+                    AttachmentPreview(message: message)
+                }
+
+                if !message.body.isEmpty {
+                    Text(message.body)
+                        .font(.system(size: 15, design: .rounded))
+                        .foregroundColor(message.isFromUser ? .white : .revText)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(bubbleBackground)
+                        .clipShape(BubbleShape(isFromUser: message.isFromUser))
+                }
 
                 if let date = message.sentAt {
                     Text(timeFormatter.string(from: date))

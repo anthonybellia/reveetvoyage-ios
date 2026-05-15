@@ -30,6 +30,7 @@ enum APIConfig {
         // Messages (authenticated)
         static let messages = "/messages"
         static let messagesUnread = "/messages/unread-count"
+        static let files = "/files"
 
         // Settings
         static let updatePassword    = "/auth/me/password"
