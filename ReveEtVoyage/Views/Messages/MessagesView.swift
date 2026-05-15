@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MessagesView: View {
+    var initialDraft: String? = nil
+
     @StateObject private var viewModel = MessagesViewModel()
     @FocusState private var inputFocused: Bool
     @Environment(\.dismiss) private var dismiss
@@ -31,7 +33,12 @@ struct MessagesView: View {
                 }
             }
         }
-        .onAppear { viewModel.startPolling() }
+        .onAppear {
+            viewModel.startPolling()
+            if let initialDraft, viewModel.draft.isEmpty {
+                viewModel.draft = initialDraft
+            }
+        }
         .onDisappear { viewModel.stopPolling() }
     }
 

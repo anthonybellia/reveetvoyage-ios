@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct HomeView: View {
+    let onSwitchTab: (MainTabView.Tab) -> Void
+
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var deepLink: DeepLinkRouter
     @State private var heroAppear: Bool = false
     @State private var unreadCount: Int = 0
     @State private var navPath = NavigationPath()
+    @State private var openMessagesWithDraft: String? = nil
 
     var body: some View {
         NavigationStack(path: $navPath) {
@@ -46,6 +49,12 @@ struct HomeView: View {
             }
             .navigationDestination(for: Int.self) { id in
                 VoyageDetailView(voyageId: id)
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { openMessagesWithDraft != nil },
+                set: { if !$0 { openMessagesWithDraft = nil } }
+            )) {
+                MessagesView(initialDraft: openMessagesWithDraft)
             }
             .onChange(of: deepLink.pendingVoyageId) { newId in
                 if let newId {
@@ -132,13 +141,17 @@ struct HomeView: View {
                 title: "Nouveau voyage",
                 subtitle: "Demande un devis",
                 systemImage: "airplane.departure",
-                gradient: [.revYellow, .revOrange]
+                gradient: [.revYellow, .revOrange],
+                action: {
+                    openMessagesWithDraft = "Bonjour ! J'aimerais faire une demande de voyage. Voici mes critères :\n\n• Destination : \n• Dates souhaitées : \n• Nombre de personnes : \n• Type (couple/famille/amis/solo/lune de miel) : \n• Budget approximatif : \n\nMerci !"
+                }
             )
             QuickActionCard(
                 title: "Mes passagers",
                 subtitle: "Gérer la liste",
                 systemImage: "person.2.fill",
-                gradient: [.revOrange, .revRed]
+                gradient: [.revOrange, .revRed],
+                action: { onSwitchTab(.passengers) }
             )
         }
     }
@@ -214,6 +227,7 @@ private struct QuickActionCard: View {
     let subtitle: String
     let systemImage: String
     let gradient: [Color]
+    let action: () -> Void
     @State private var hover = false
 
     var body: some View {
@@ -247,6 +261,7 @@ private struct QuickActionCard: View {
             withAnimation { hover = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 withAnimation { hover = false }
+                action()
             }
         }
     }

@@ -57,7 +57,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView()
+            HomeView(onSwitchTab: { selectedTab = $0 })
                 .tabItem { Label(Tab.home.title, systemImage: Tab.home.systemImage) }
                 .tag(Tab.home)
 
