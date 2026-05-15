@@ -390,7 +390,7 @@ struct CelebrationOverlay: View {
             }
         }
         .ignoresSafeArea()
-        .onChange(of: burst) { _, _ in spawn() }
+        .onChange(of: burst) { _ in spawn() }
         .onAppear { spawn() }
     }
 

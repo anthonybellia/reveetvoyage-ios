@@ -8,7 +8,7 @@ struct Passenger: Codable, Identifiable {
     let type_doc: String?
     let num_doc: String?
     let nationalite: String?
-    let langues: [String]
+    let langues: [String]?
     let notes: String?
     let expiration_doc: String?
     let is_default: Bool
@@ -33,7 +33,7 @@ struct PassengerCreateRequest: Encodable {
     let type_doc: String?
     let num_doc: String?
     let nationalite: String?
-    let langues: [String]
+    let langues: [String]?
     let notes: String?
     let expiration_doc: String?
     let is_default: Bool

@@ -47,7 +47,7 @@ struct LoginView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .onAppear { runEntranceAnimations() }
-        .onChange(of: viewModel.errorMessage) { _, newValue in
+        .onChange(of: viewModel.errorMessage) { newValue in
             if newValue != nil { triggerErrorShake() }
         }
     }
