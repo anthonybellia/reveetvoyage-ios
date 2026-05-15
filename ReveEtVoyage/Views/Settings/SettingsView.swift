@@ -10,6 +10,11 @@ struct SettingsView: View {
     @State private var showLanguage: Bool = false
     @State private var showNotificationsSettings: Bool = false
 
+    struct PageDest: Hashable {
+        let slug: String
+        let title: String
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -73,6 +78,9 @@ struct SettingsView: View {
             }
             .navigationDestination(isPresented: $showMessages) {
                 MessagesView()
+            }
+            .navigationDestination(for: PageDest.self) { dest in
+                PageView(slug: dest.slug, fallbackTitle: dest.title)
             }
         }
     }
@@ -161,17 +169,33 @@ struct SettingsView: View {
         }
     }
 
+    @Environment(\.openURL) private var openURL
+
     private var legalSection: some View {
         GlassCard(padding: 0) {
             VStack(spacing: 0) {
-                settingsRow(icon: "doc.text.fill", title: "Conditions générales",
-                            subtitle: nil, color: .revTextSecondary) {}
+                NavigationLink(value: PageDest(slug: "conditions-generales", title: "Conditions générales")) {
+                    settingsRowContent(icon: "doc.text.fill", title: "Conditions générales",
+                                       subtitle: "Lire les CGU", color: .revTextSecondary)
+                }
+                .buttonStyle(.plain)
                 Divider().padding(.leading, 60)
-                settingsRow(icon: "hand.raised.fill", title: "Confidentialité",
-                            subtitle: nil, color: .revTextSecondary) {}
+                NavigationLink(value: PageDest(slug: "politique-de-confidentialite", title: "Confidentialité")) {
+                    settingsRowContent(icon: "hand.raised.fill", title: "Confidentialité",
+                                       subtitle: "Protection des données", color: .revTextSecondary)
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.leading, 60)
+                NavigationLink(value: PageDest(slug: "conditions-de-vente", title: "Conditions de vente")) {
+                    settingsRowContent(icon: "scroll.fill", title: "Conditions de vente",
+                                       subtitle: "CGV applicables", color: .revTextSecondary)
+                }
+                .buttonStyle(.plain)
                 Divider().padding(.leading, 60)
                 settingsRow(icon: "questionmark.circle.fill", title: "Aide",
-                            subtitle: nil, color: .revTextSecondary) {}
+                            subtitle: "Contacte l'équipe Rêve et Voyage", color: .revTextSecondary) {
+                    showMessages = true
+                }
             }
         }
     }
@@ -179,35 +203,39 @@ struct SettingsView: View {
     private func settingsRow(icon: String, title: String, subtitle: String?, color: Color,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(
-                        LinearGradient(colors: [color.opacity(0.85), color],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.revText)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 11))
-                            .foregroundColor(.revTextSecondary)
-                    }
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.revTextSecondary.opacity(0.5))
-            }
-            .padding(14)
+            settingsRowContent(icon: icon, title: title, subtitle: subtitle, color: color)
         }
         .buttonStyle(.plain)
+    }
+
+    private func settingsRowContent(icon: String, title: String, subtitle: String?, color: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 32, height: 32)
+                .background(
+                    LinearGradient(colors: [color.opacity(0.85), color],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(.revText)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(.revTextSecondary)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.revTextSecondary.opacity(0.5))
+        }
+        .padding(14)
     }
 
     // MARK: - Logout
