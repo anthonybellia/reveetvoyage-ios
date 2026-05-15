@@ -39,7 +39,6 @@ final class NotificationManager {
 
         guard let depart = voyage.date_depart?.toDate() else { return }
 
-        // Skip past trips
         if depart < Date() { return }
 
         let leadTimes: [(days: Int, hour: Int, key: String, title: String, bodyTemplate: String)] = [
@@ -84,6 +83,30 @@ final class NotificationManager {
             let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
             try? await center.add(request)
         }
+
+        // 30-min-before reminders for each étape with date + heure
+        for etape in voyage.etapes ?? [] {
+            guard let fireDate = etapeFireDate(etape), fireDate > Date() else { continue }
+
+            let content = UNMutableNotificationContent()
+            content.title = "Dans 30 min : \(etape.titre)"
+            content.body = etapeNotifBody(etape)
+            content.sound = .default
+            content.userInfo = [
+                "voyage_id": voyage.id,
+                "etape_id": etape.id,
+                "kind": "etape-30min",
+            ]
+            content.categoryIdentifier = "ETAPE_REMINDER"
+
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate),
+                repeats: false
+            )
+            let id = "voyage-\(voyage.id)-etape-\(etape.id)-30min"
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            try? await center.add(request)
+        }
     }
 
     func cancelVoyage(_ voyageId: Int) async {
@@ -101,7 +124,29 @@ final class NotificationManager {
 
     // MARK: - Helpers
 
-    /// Arrival airport time = departure - 2h. Returned as "HH:mm" (24h).
+    private func etapeFireDate(_ etape: VoyageEtape) -> Date? {
+        guard let dateStr = etape.date, let heure = etape.heure else { return nil }
+        guard let baseDate = dateStr.toDate() else { return nil }
+
+        let parts = heure.split(separator: ":").compactMap { Int($0) }
+        guard parts.count >= 2 else { return nil }
+
+        var comps = cal.dateComponents([.year, .month, .day], from: baseDate)
+        comps.hour = parts[0]
+        comps.minute = parts[1]
+
+        guard let etapeDate = cal.date(from: comps) else { return nil }
+        return cal.date(byAdding: .minute, value: -30, to: etapeDate)
+    }
+
+    private func etapeNotifBody(_ etape: VoyageEtape) -> String {
+        var parts: [String] = []
+        if let heure = etape.heure { parts.append("Prévu à \(heure)") }
+        if let lieu = etape.lieu, !lieu.isEmpty { parts.append(lieu) }
+        else if let desc = etape.description, !desc.isEmpty { parts.append(desc) }
+        return parts.isEmpty ? "Prépare-toi pour la prochaine étape." : parts.joined(separator: " — ")
+    }
+
     private func airportArrivalTime(forDeparture date: Date) -> String? {
         guard let arrival = cal.date(byAdding: .hour, value: -2, to: date) else { return nil }
         let f = DateFormatter()

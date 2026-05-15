@@ -440,6 +440,7 @@ struct EtapeMiniMap: View {
     }
 
     @State private var region: MKCoordinateRegion
+    @State private var showItinerarySheet = false
 
     init(latitude: Double, longitude: Double, title: String, address: String?) {
         self.latitude = latitude
@@ -475,7 +476,7 @@ struct EtapeMiniMap: View {
             )
 
             Button {
-                openInMaps()
+                showItinerarySheet = true
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.up.right.square.fill")
@@ -486,15 +487,30 @@ struct EtapeMiniMap: View {
                 .foregroundColor(.revOrange)
             }
         }
+        .confirmationDialog("Ouvrir l'itinéraire avec", isPresented: $showItinerarySheet, titleVisibility: .visible) {
+            Button("Apple Plans") { openInApplePlans() }
+            Button("Google Maps") { openInGoogleMaps() }
+            Button("Annuler", role: .cancel) {}
+        }
     }
 
-    private func openInMaps() {
+    private func openInApplePlans() {
         let placemark = MKPlacemark(coordinate: coordinate)
         let item = MKMapItem(placemark: placemark)
         item.name = title
         item.openInMaps(launchOptions: [
             MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
         ])
+    }
+
+    private func openInGoogleMaps() {
+        let appURL = URL(string: "comgooglemaps://?daddr=\(latitude),\(longitude)&directionsmode=driving")
+        let webURL = URL(string: "https://www.google.com/maps/dir/?api=1&destination=\(latitude),\(longitude)&travelmode=driving")!
+        if let appURL, UIApplication.shared.canOpenURL(appURL) {
+            UIApplication.shared.open(appURL)
+        } else {
+            UIApplication.shared.open(webURL)
+        }
     }
 }
 
