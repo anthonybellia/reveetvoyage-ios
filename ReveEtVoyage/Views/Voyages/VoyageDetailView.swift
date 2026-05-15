@@ -1,10 +1,18 @@
 import SwiftUI
 import MapKit
 
+struct EtapeNavValue: Hashable {
+    let etape: VoyageEtape
+    func hash(into hasher: inout Hasher) { hasher.combine(etape.id) }
+    static func == (lhs: EtapeNavValue, rhs: EtapeNavValue) -> Bool { lhs.etape.id == rhs.etape.id }
+}
+
 struct VoyageDetailView: View {
     @StateObject private var viewModel: VoyageDetailViewModel
     @State private var celebrate: Bool = false
     @State private var confettiBurst: Int = 0
+    @State private var showToggleConfirm: Bool = false
+    @State private var pendingToggleEtape: VoyageEtape? = nil
 
     init(voyageId: Int) {
         _viewModel = StateObject(wrappedValue: VoyageDetailViewModel(voyageId: voyageId))
@@ -46,7 +54,37 @@ struct VoyageDetailView: View {
                 }
             }
         }
+        .navigationDestination(for: EtapeNavValue.self) { value in
+            if let voyage = viewModel.voyage {
+                EtapeDetailView(voyage: voyage, etape: currentEtape(value.etape), viewModel: viewModel)
+            }
+        }
+        .confirmationDialog(
+            (pendingToggleEtape?.is_completed == true)
+                ? "Marquer comme non effectuée ?"
+                : "As-tu bien réalisé cette étape ?",
+            isPresented: $showToggleConfirm,
+            titleVisibility: .visible
+        ) {
+            if let etape = pendingToggleEtape {
+                Button(etape.is_completed ? "Marquer non effectuée" : "Oui, c'est fait ✅",
+                       role: etape.is_completed ? .destructive : nil) {
+                    handleToggle(etape)
+                    pendingToggleEtape = nil
+                }
+                Button("Annuler", role: .cancel) { pendingToggleEtape = nil }
+            }
+        } message: {
+            if pendingToggleEtape?.is_completed == false {
+                Text("Tu peux passer à l'étape suivante. On te rappellera les prochaines.")
+            }
+        }
         .task { await viewModel.load() }
+    }
+
+    /// Use the live version from viewModel (in case it was just toggled)
+    private func currentEtape(_ original: VoyageEtape) -> VoyageEtape {
+        viewModel.etapes.first(where: { $0.id == original.id }) ?? original
     }
 
     private var backgroundLayer: some View {
@@ -86,6 +124,10 @@ struct VoyageDetailView: View {
                     }
                 }
 
+                if let participants = voyage.participants, !participants.isEmpty {
+                    participantsRow(participants)
+                }
+
                 if voyage.montant_total > 0 {
                     HStack(spacing: 10) {
                         Image(systemName: "creditcard.fill")
@@ -99,6 +141,35 @@ struct VoyageDetailView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(.revTextSecondary)
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    private func participantsRow(_ participants: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 11))
+                Text("VOYAGEURS (\(participants.count))")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundColor(.revOrange)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(participants, id: \.self) { name in
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.system(size: 12))
+                            Text(name)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(.revBrown)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.revYellow.opacity(0.25)))
                     }
                 }
             }
@@ -163,16 +234,24 @@ struct VoyageDetailView: View {
                 }
             } else {
                 ForEach(Array(viewModel.etapes.enumerated()), id: \.element.id) { index, etape in
-                    EtapeRow(
-                        etape: etape,
-                        isFirst: index == 0,
-                        isLast: index == viewModel.etapes.count - 1,
-                        isToggling: viewModel.togglingEtapeIds.contains(etape.id),
-                        onToggle: { handleToggle(etape) }
-                    )
+                    NavigationLink(value: EtapeNavValue(etape: etape)) {
+                        EtapeRow(
+                            etape: etape,
+                            isFirst: index == 0,
+                            isLast: index == viewModel.etapes.count - 1,
+                            isToggling: viewModel.togglingEtapeIds.contains(etape.id),
+                            onToggle: { showToggleConfirmFor(etape) }
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private func showToggleConfirmFor(_ etape: VoyageEtape) {
+        pendingToggleEtape = etape
+        showToggleConfirm = true
     }
 
     private func handleToggle(_ etape: VoyageEtape) {
