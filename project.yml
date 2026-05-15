@@ -2,7 +2,7 @@ name: ReveEtVoyage
 options:
   bundleIdPrefix: be.reveetvoyage
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "16.0"
   developmentLanguage: fr
   createIntermediateGroups: true
 
@@ -22,7 +22,7 @@ targets:
   ReveEtVoyage:
     type: application
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "16.0"
     sources:
       - path: ReveEtVoyage
         excludes:
@@ -44,7 +44,7 @@ targets:
   ReveEtVoyageTests:
     type: bundle.unit-test
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "16.0"
     sources:
       - path: ReveEtVoyageTests
     settings:
@@ -57,7 +57,7 @@ targets:
   ReveEtVoyageUITests:
     type: bundle.ui-testing
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "16.0"
     sources:
       - path: ReveEtVoyageUITests
     settings:

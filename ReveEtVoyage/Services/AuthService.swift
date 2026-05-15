@@ -29,11 +29,11 @@ final class AuthService: ObservableObject {
         let body = LoginRequest(email: email, password: password, device_name: "iOS App")
 
         do {
-            let response: APIResponse<AuthResponse> = try await apiClient.post(
+            let auth: AuthResponse = try await apiClient.post(
                 path: APIConfig.Endpoints.login,
                 body: body
             )
-            try handleAuthResponse(response)
+            handleAuth(auth)
         } catch {
             errorMessage = error.localizedDescription
             isAuthenticated = false
@@ -57,11 +57,11 @@ final class AuthService: ObservableObject {
         )
 
         do {
-            let response: APIResponse<AuthResponse> = try await apiClient.post(
+            let auth: AuthResponse = try await apiClient.post(
                 path: APIConfig.Endpoints.register,
                 body: body
             )
-            try handleAuthResponse(response)
+            handleAuth(auth)
         } catch {
             errorMessage = error.localizedDescription
             isAuthenticated = false
@@ -75,7 +75,7 @@ final class AuthService: ObservableObject {
             try await apiClient.postVoid(path: APIConfig.Endpoints.logout, requiresAuth: true)
         } catch {
             #if DEBUG
-            print("[AuthService] Server-side logout failed (clearing local state anyway): \(error)")
+            print("[AuthService] Server-side logout failed: \(error)")
             #endif
         }
         clearLocalSession()
@@ -85,17 +85,14 @@ final class AuthService: ObservableObject {
 
     func loadCurrentUser() async {
         do {
-            let response: APIResponse<User> = try await apiClient.get(
+            let me: MeResponse = try await apiClient.get(
                 path: APIConfig.Endpoints.me,
                 requiresAuth: true
             )
-            if let user = response.data {
-                currentUser = user
-                isAuthenticated = true
-                keychain.saveUserId(user.id)
-            }
+            currentUser = me.user
+            isAuthenticated = true
+            keychain.saveUserId(me.user.id)
         } catch {
-            // Token invalid or network error — drop local session
             clearLocalSession()
         }
     }
@@ -117,12 +114,7 @@ final class AuthService: ObservableObject {
 
     // MARK: - Helpers
 
-    private func handleAuthResponse(_ response: APIResponse<AuthResponse>) throws {
-        guard let auth = response.data else {
-            errorMessage = response.message ?? "Réponse d'authentification invalide"
-            isAuthenticated = false
-            throw NetworkError.serverError(statusCode: 200, message: response.message)
-        }
+    private func handleAuth(_ auth: AuthResponse) {
         apiClient.setToken(auth.token)
         keychain.saveUserId(auth.user.id)
         currentUser = auth.user
@@ -158,4 +150,10 @@ struct RegisterRequest: Encodable {
 
 struct ForgotPasswordRequest: Encodable {
     let email: String
+}
+
+// MARK: - Response wrappers (matching real Laravel API shapes)
+
+struct MeResponse: Decodable {
+    let user: User
 }

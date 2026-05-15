@@ -17,6 +17,9 @@ enum APIConfig {
 
         // Voyages (authenticated)
         static let voyages = "/voyages"
+        static func toggleEtape(voyageId: Int, etapeId: Int) -> String {
+            "/voyages/\(voyageId)/etapes/\(etapeId)/toggle"
+        }
 
         // Devis (authenticated)
         static let devis = "/devis"

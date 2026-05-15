@@ -1,18 +1,28 @@
 import Foundation
 
-// Generic wrapper for API responses that include metadata
+// Generic wrapper for API responses that include metadata.
+// `success` is optional because Laravel JsonResource collections only return {data, links, meta}.
 struct APIResponse<T: Decodable>: Decodable {
-    let success: Bool
+    let success: Bool?
     let data: T?
     let message: String?
     let errors: [String: [String]]?
+    let meta: PaginationMeta?
 
     enum CodingKeys: String, CodingKey {
         case success
         case data
         case message
         case errors
+        case meta
     }
+}
+
+struct PaginationMeta: Decodable {
+    let current_page: Int?
+    let last_page: Int?
+    let per_page: Int?
+    let total: Int?
 }
 
 // Void response for endpoints that return no meaningful body (e.g. logout 204)
