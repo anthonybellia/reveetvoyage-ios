@@ -203,6 +203,16 @@ struct SettingsView: View {
                         openLink("https://www.instagram.com/matilda_travelplanner")
                     }
                     Divider().padding(.leading, 60)
+                    settingsRow(icon: "creditcard.fill", title: "Revolut",
+                                subtitle: "Carte voyage sans frais", color: .purple) {
+                        openLink("https://revolut.com/referral/?referral-code=mlarosa97!MAY2-26-AR-H1&geo-redirect")
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "wifi", title: "Holafly",
+                                subtitle: "eSIM data internationale", color: .cyan) {
+                        openLink("https://www.holafly.com/?ref=reveetvoyage")
+                    }
+                    Divider().padding(.leading, 60)
                     settingsRow(icon: "star.fill", title: "Noter l'app",
                                 subtitle: "Sur l'App Store", color: .yellow) {
                         openLink("https://apps.apple.com/app/id0?action=write-review")
