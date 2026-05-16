@@ -99,6 +99,8 @@ extension VoyageEtape {
             details: details,
             contenu_html: contenu_html,
             image: image,
+            fichier: fichier,
+            images: images,
             icon: icon,
             color: color,
             is_completed: !is_completed,

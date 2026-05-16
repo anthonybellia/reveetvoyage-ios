@@ -1,5 +1,7 @@
 import SwiftUI
 import MapKit
+import QuickLook
+import Photos
 
 /// Detail full-screen for a single voyage étape.
 /// - Big interactive map if coordinates
@@ -15,12 +17,31 @@ struct EtapeDetailView: View {
     @State private var showItinerarySheet: Bool = false
     @State private var showToggleConfirm: Bool = false
     @State private var region: MKCoordinateRegion = MKCoordinateRegion()
+    @State private var resolvedCoordinate: CLLocationCoordinate2D? = nil
+    @State private var isGeocoding: Bool = false
+
+    // Attachments state
+    @State private var fullScreenImageURL: URL? = nil
+    @State private var isDownloading: Bool = false
+    @State private var downloadedFileURL: URL? = nil
+    @State private var showShareSheet: Bool = false
+    @State private var showImageSaveSuccess: Bool = false
+    @State private var showQuickLook: Bool = false
+
+    private var mapCoordinate: CLLocationCoordinate2D? {
+        if let lat = etape.latitude, let lng = etape.longitude {
+            return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        }
+        return resolvedCoordinate
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if etape.hasCoordinates {
-                    mapHero
+                if let coord = mapCoordinate {
+                    mapHero(coord)
+                } else if isGeocoding {
+                    geocodingPlaceholder
                 }
 
                 headerCard
@@ -33,6 +54,11 @@ struct EtapeDetailView: View {
 
                 if let description = etape.description, !description.isEmpty {
                     descriptionCard(description)
+                        .padding(.horizontal, 18)
+                }
+
+                if etape.hasAttachments {
+                    attachmentsSection
                         .padding(.horizontal, 18)
                 }
 
@@ -68,16 +94,59 @@ struct EtapeDetailView: View {
             isPresented: $showItinerarySheet,
             titleVisibility: .visible
         ) {
-            if let lat = etape.latitude, let lng = etape.longitude {
-                Button("Apple Plans") { openInApplePlans(lat: lat, lng: lng) }
-                Button("Google Maps") { openInGoogleMaps(lat: lat, lng: lng) }
+            if let coord = mapCoordinate {
+                Button("Apple Plans") { openInApplePlans(lat: coord.latitude, lng: coord.longitude) }
+                Button("Google Maps") { openInGoogleMaps(lat: coord.latitude, lng: coord.longitude) }
                 Button("Annuler", role: .cancel) {}
             }
         }
-        .onAppear {
-            if let lat = etape.latitude, let lng = etape.longitude {
+        .onAppear { initializeMap() }
+        .overlay {
+            if let url = fullScreenImageURL {
+                fullScreenImageOverlay(url)
+            }
+        }
+        .overlay {
+            if showImageSaveSuccess {
+                imageSaveToast
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let fileURL = downloadedFileURL {
+                ShareSheet(items: [fileURL])
+            }
+        }
+        .sheet(isPresented: $showQuickLook) {
+            if let fileURL = downloadedFileURL {
+                QuickLookPreview(url: fileURL)
+            }
+        }
+    }
+
+    private func initializeMap() {
+        if let lat = etape.latitude, let lng = etape.longitude {
+            region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: lat, longitude: lng),
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            )
+            return
+        }
+
+        let candidate = [etape.adresse, etape.lieu]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+
+        guard !candidate.isEmpty else { return }
+
+        isGeocoding = true
+        CLGeocoder().geocodeAddressString(candidate) { placemarks, _ in
+            DispatchQueue.main.async {
+                isGeocoding = false
+                guard let loc = placemarks?.first?.location else { return }
+                resolvedCoordinate = loc.coordinate
                 region = MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(latitude: lat, longitude: lng),
+                    center: loc.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                 )
             }
@@ -86,11 +155,10 @@ struct EtapeDetailView: View {
 
     // MARK: - Map
 
-    private var mapHero: some View {
+    private func mapHero(_ coord: CLLocationCoordinate2D) -> some View {
         ZStack(alignment: .topLeading) {
             Map(coordinateRegion: $region,
-                annotationItems: [Pin(coordinate: CLLocationCoordinate2D(
-                    latitude: etape.latitude ?? 0, longitude: etape.longitude ?? 0))]) { p in
+                annotationItems: [Pin(coordinate: coord)]) { p in
                 MapAnnotation(coordinate: p.coordinate) {
                     ZStack {
                         Circle().fill(Color.revOrange).frame(width: 36, height: 36)
@@ -113,6 +181,27 @@ struct EtapeDetailView: View {
             .background(Capsule().fill(Color.revBrown.opacity(0.8)))
             .padding(.top, 18).padding(.leading, 16)
         }
+    }
+
+    private var geocodingPlaceholder: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.revBackground)
+                .frame(height: 220)
+                .overlay(
+                    LinearGradient(
+                        colors: [Color.revYellow.opacity(0.15), Color.revOrange.opacity(0.08)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+            VStack(spacing: 8) {
+                ProgressView().tint(.revOrange)
+                Text("Localisation de l'étape…")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.revTextSecondary)
+            }
+        }
+        .ignoresSafeArea(edges: .top)
     }
 
     private struct Pin: Identifiable {
@@ -223,7 +312,7 @@ struct EtapeDetailView: View {
 
     private var actionsRow: some View {
         VStack(spacing: 10) {
-            if etape.hasCoordinates {
+            if mapCoordinate != nil {
                 BrandButton(title: "Itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond.fill",
                             style: .primary) {
                     showItinerarySheet = true
@@ -236,6 +325,311 @@ struct EtapeDetailView: View {
                 style: etape.is_completed ? .ghost : .secondary
             ) {
                 showToggleConfirm = true
+            }
+        }
+    }
+
+    // MARK: - Attachments
+
+    private var attachmentsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Images gallery
+            if let images = etape.images, !images.isEmpty {
+                GlassCard(padding: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionTitle(title: "Photos", systemImage: "photo.stack")
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(Array(images.enumerated()), id: \.offset) { _, urlString in
+                                    if let url = attachmentURL(urlString) {
+                                        imageThumb(url)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Document fichier
+            if let fichier = etape.fichier, let url = attachmentURL(fichier) {
+                GlassCard(padding: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionTitle(title: "Document", systemImage: "doc.fill")
+
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.revOrange.opacity(0.12))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: documentIcon(for: fichier))
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundColor(.revOrange)
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(documentName(from: fichier))
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.revText)
+                                    .lineLimit(1)
+                                Text(documentExtension(from: fichier).uppercased())
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.revTextSecondary)
+                            }
+
+                            Spacer()
+
+                            // Open/Preview button
+                            Button {
+                                openDocument(url)
+                            } label: {
+                                Image(systemName: "eye.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.revOrange)
+                                    .frame(width: 40, height: 40)
+                                    .background(Circle().fill(Color.revOrange.opacity(0.12)))
+                            }
+
+                            // Download button
+                            Button {
+                                downloadFile(from: url)
+                            } label: {
+                                ZStack {
+                                    if isDownloading {
+                                        ProgressView()
+                                            .tint(.revOrange)
+                                            .frame(width: 40, height: 40)
+                                    } else {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 40, height: 40)
+                                            .background(
+                                                Circle().fill(
+                                                    LinearGradient(
+                                                        colors: [.revOrange, .revRed],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                            )
+                                    }
+                                }
+                            }
+                            .disabled(isDownloading)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func imageThumb(_ url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 140, height: 100)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            fullScreenImageURL = url
+                        }
+                    }
+                    .onLongPressGesture {
+                        saveImageToPhotos(from: url)
+                    }
+            case .failure:
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revCardBackground)
+                        .frame(width: 140, height: 100)
+                    Image(systemName: "photo")
+                        .font(.system(size: 24))
+                        .foregroundColor(.revTextSecondary)
+                }
+            default:
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revCardBackground)
+                        .frame(width: 140, height: 100)
+                    ProgressView().tint(.revOrange)
+                }
+            }
+        }
+        .frame(width: 140, height: 100)
+        .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+    }
+
+    private func fullScreenImageOverlay(_ url: URL) -> some View {
+        ZStack {
+            Color.black.opacity(0.92)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        fullScreenImageURL = nil
+                    }
+                }
+
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button {
+                        saveImageToPhotos(from: url)
+                    } label: {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                    .padding(.trailing, 8)
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            fullScreenImageURL = nil
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+                Spacer()
+
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .padding(.horizontal, 12)
+                    default:
+                        ProgressView().tint(.white)
+                    }
+                }
+
+                Spacer()
+            }
+        }
+        .transition(.opacity)
+    }
+
+    private var imageSaveToast: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Photo enregistree")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Capsule().fill(Color.revBrown.opacity(0.9)))
+            .padding(.bottom, 40)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .allowsHitTesting(false)
+    }
+
+    // MARK: - Attachment Helpers
+
+    private func attachmentURL(_ path: String) -> URL? {
+        if path.hasPrefix("http") { return URL(string: path) }
+        let base = APIConfig.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
+    }
+
+    private func documentIcon(for path: String) -> String {
+        let ext = documentExtension(from: path).lowercased()
+        switch ext {
+        case "pdf": return "doc.richtext.fill"
+        case "doc", "docx": return "doc.text.fill"
+        case "xls", "xlsx": return "tablecells.fill"
+        default: return "doc.fill"
+        }
+    }
+
+    private func documentName(from path: String) -> String {
+        (path as NSString).lastPathComponent
+    }
+
+    private func documentExtension(from path: String) -> String {
+        (path as NSString).pathExtension
+    }
+
+    private func openDocument(_ url: URL) {
+        Task {
+            do {
+                let (localURL, _) = try await URLSession.shared.download(from: url)
+                let ext = documentExtension(from: url.lastPathComponent)
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension(ext.isEmpty ? "pdf" : ext)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: localURL, to: dest)
+                await MainActor.run {
+                    downloadedFileURL = dest
+                    showQuickLook = true
+                }
+            } catch {
+                // Fallback: open in Safari
+                await MainActor.run {
+                    UIApplication.shared.open(url)
+                }
+            }
+        }
+    }
+
+    private func downloadFile(from url: URL) {
+        guard !isDownloading else { return }
+        isDownloading = true
+        Task {
+            do {
+                let (localURL, _) = try await URLSession.shared.download(from: url)
+                let ext = documentExtension(from: url.lastPathComponent)
+                let fileName = documentName(from: url.lastPathComponent)
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(fileName.isEmpty ? "document.\(ext)" : fileName)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: localURL, to: dest)
+                await MainActor.run {
+                    isDownloading = false
+                    downloadedFileURL = dest
+                    showShareSheet = true
+                }
+            } catch {
+                await MainActor.run {
+                    isDownloading = false
+                }
+            }
+        }
+    }
+
+    private func saveImageToPhotos(from url: URL) {
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let uiImage = UIImage(data: data) else { return }
+                await MainActor.run {
+                    UIImageWriteToSavedPhotosAlbum(uiImage, nil, nil, nil)
+                    withAnimation(.spring(response: 0.4)) {
+                        showImageSaveSuccess = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation(.easeOut) {
+                            showImageSaveSuccess = false
+                        }
+                    }
+                }
+            } catch {
+                // Silent failure — network issue
             }
         }
     }
@@ -287,6 +681,45 @@ struct EtapeDetailView: View {
             UIApplication.shared.open(appURL)
         } else {
             UIApplication.shared.open(webURL)
+        }
+    }
+}
+
+// MARK: - ShareSheet (UIActivityViewController wrapper)
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - QuickLook Preview (QLPreviewController wrapper)
+
+private struct QuickLookPreview: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Coordinator { Coordinator(url: url) }
+
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return UINavigationController(rootViewController: controller)
+    }
+
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {}
+
+    class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        init(url: URL) { self.url = url }
+
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            url as QLPreviewItem
         }
     }
 }

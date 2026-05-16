@@ -29,6 +29,9 @@ struct SettingsView: View {
                     appSection
                         .padding(.horizontal, 18)
 
+                    linksSection
+                        .padding(.horizontal, 18)
+
                     legalSection
                         .padding(.horizontal, 18)
 
@@ -170,6 +173,65 @@ struct SettingsView: View {
     }
 
     @Environment(\.openURL) private var openURL
+
+    private var linksSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("LIENS UTILES")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.revTextSecondary)
+                .padding(.leading, 8)
+
+            GlassCard(padding: 0) {
+                VStack(spacing: 0) {
+                    settingsRow(icon: "globe", title: "Site web",
+                                subtitle: "reveetvoyage.be", color: .blue) {
+                        openLink("https://www.reveetvoyage.be")
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "phone.fill", title: "Téléphone",
+                                subtitle: "+32 497 02 85 20", color: .green) {
+                        openLink("tel:+32497028520")
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "envelope.fill", title: "Email",
+                                subtitle: "contact@reveetvoyage.be", color: .revOrange) {
+                        openLink("mailto:contact@reveetvoyage.be")
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "camera.fill", title: "Instagram",
+                                subtitle: "@matilda_travelplanner", color: .pink) {
+                        openLink("https://www.instagram.com/matilda_travelplanner")
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "star.fill", title: "Noter l'app",
+                                subtitle: "Sur l'App Store", color: .yellow) {
+                        openLink("https://apps.apple.com/app/id0?action=write-review")
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "square.and.arrow.up.fill", title: "Partager Rêve et Voyage",
+                                subtitle: "Envoie l'app à un ami", color: .revRed) {
+                        shareApp()
+                    }
+                }
+            }
+        }
+    }
+
+    private func openLink(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        openURL(url)
+    }
+
+    private func shareApp() {
+        let text = "Découvre Rêve et Voyage — l'app pour organiser tes voyages 🌴 https://www.reveetvoyage.be"
+        let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController { topVC = presented }
+            topVC.present(activityVC, animated: true)
+        }
+    }
 
     private var legalSection: some View {
         GlassCard(padding: 0) {

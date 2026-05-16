@@ -1,15 +1,20 @@
+import CoreLocation
 import SwiftUI
 
 struct HomeView: View {
     let onSwitchTab: (MainTabView.Tab) -> Void
 
     @StateObject private var viewModel = HomeViewModel()
+    @StateObject private var locationService = LocationService.shared
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var deepLink: DeepLinkRouter
     @State private var heroAppear: Bool = false
     @State private var unreadCount: Int = 0
     @State private var navPath = NavigationPath()
     @State private var openMessagesWithDraft: String? = nil
+    @State private var weather: WeatherResponse? = nil
+    @State private var weatherLoading: Bool = false
+    @State private var weatherLocationLabel: String? = nil
 
     var body: some View {
         NavigationStack(path: $navPath) {
@@ -21,6 +26,13 @@ struct HomeView: View {
 
                     quickActions
                         .padding(.horizontal, 20)
+
+                    WeatherCard(
+                        weather: weather,
+                        locationLabel: weatherLocationLabel,
+                        isLoading: weatherLoading,
+                    )
+                    .padding(.horizontal, 20)
 
                     if viewModel.isLoading && viewModel.voyages.isEmpty && viewModel.recentDevis.isEmpty {
                         ProgressView()
@@ -43,9 +55,13 @@ struct HomeView: View {
             .task {
                 await viewModel.loadData()
                 await loadUnreadCount()
+                await loadWeather()
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
                     heroAppear = true
                 }
+            }
+            .onChange(of: locationService.lastKnownLocation) { _ in
+                Task { await loadWeather() }
             }
             .navigationDestination(for: Int.self) { id in
                 VoyageDetailView(voyageId: id)
@@ -70,6 +86,35 @@ struct HomeView: View {
             unreadCount = try await MessageService.shared.unreadCount()
         } catch {
             unreadCount = 0
+        }
+    }
+
+    private func loadWeather() async {
+        let coord = locationService.lastKnownLocation?.coordinate
+            ?? CLLocationCoordinate2D(latitude: 50.8503, longitude: 4.3517) // fallback Brussels
+
+        let label: String? = await reverseGeocode(coord) ?? "Belgique"
+        weatherLocationLabel = label
+
+        weatherLoading = (weather == nil)
+        do {
+            weather = try await WeatherService.shared.fetch(latitude: coord.latitude, longitude: coord.longitude)
+        } catch {
+            #if DEBUG
+            print("[HomeView] weather fetch failed: \(error)")
+            #endif
+        }
+        weatherLoading = false
+    }
+
+    private func reverseGeocode(_ coord: CLLocationCoordinate2D) async -> String? {
+        let location = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        return await withCheckedContinuation { cont in
+            CLGeocoder().reverseGeocodeLocation(location, preferredLocale: Locale(identifier: "fr_FR")) { placemarks, _ in
+                let pm = placemarks?.first
+                let city = pm?.locality ?? pm?.subAdministrativeArea ?? pm?.administrativeArea
+                cont.resume(returning: city)
+            }
         }
     }
 

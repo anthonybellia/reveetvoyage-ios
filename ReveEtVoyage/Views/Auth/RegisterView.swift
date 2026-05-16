@@ -56,6 +56,22 @@ struct RegisterView: View {
                 }
                 .disabled(viewModel.isLoading)
 
+                HStack(spacing: 10) {
+                    Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2))
+                    Text("ou").font(.caption).foregroundColor(.revTextSecondary)
+                    Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2))
+                }
+                .padding(.vertical, 4)
+
+                AppleSignInButton {
+                    Task { await viewModel.loginWithApple() }
+                }
+                .frame(height: 48)
+
+                GoogleSignInButton {
+                    Task { await viewModel.loginWithGoogle() }
+                }
+
                 Button("Retour à la connexion") {
                     showRegister = false
                 }

@@ -18,6 +18,9 @@ struct ReveEtVoyageApp: App {
             RootView()
                 .environmentObject(AuthService.shared)
                 .environmentObject(DeepLinkRouter.shared)
+                .onOpenURL { url in
+                    _ = GoogleSignInHelper.shared.handle(url)
+                }
         }
     }
 }
@@ -26,7 +29,29 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        DispatchQueue.main.async {
+            PushService.shared.requestAuthorizationAndRegister()
+            if APIClient.shared.isAuthenticated() {
+                LocationService.shared.startIfPermitted()
+            }
+        }
         return true
+    }
+
+    /// Apple gave us a device token — pass it to PushService.
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        Task { @MainActor in
+            PushService.shared.saveAndRegister(token)
+        }
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        #if DEBUG
+        print("[AppDelegate] APNs registration failed: \(error)")
+        #endif
     }
 
     /// Display banner even when app is in foreground.

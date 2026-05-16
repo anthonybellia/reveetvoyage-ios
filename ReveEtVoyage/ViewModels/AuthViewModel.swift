@@ -36,6 +36,19 @@ final class AuthViewModel: ObservableObject {
         )
     }
 
+    func loginWithApple() async {
+        await authService.loginWithApple()
+    }
+
+    func loginWithGoogle() async {
+        do {
+            let idToken = try await GoogleSignInHelper.shared.signIn()
+            await authService.loginWithGoogle(idToken: idToken)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func resetForm() {
         email = ""
         password = ""

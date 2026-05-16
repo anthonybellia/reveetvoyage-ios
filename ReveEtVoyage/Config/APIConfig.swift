@@ -35,6 +35,20 @@ enum APIConfig {
         // Settings
         static let updatePassword    = "/auth/me/password"
         static let updatePreferences = "/auth/me/preferences"
+
+        // Sign in with Apple / Google (mobile id_token exchange)
+        static let appleLogin  = "/auth/apple/login"
+        static let googleLogin = "/auth/google/login"
+
+        // APNs device registration
+        static let devices = "/devices"
+        static func deviceByToken(_ token: String) -> String { "/devices/\(token)" }
+
+        // Activity location ping (device GPS)
+        static let activityLocation = "/activity/location"
+
+        // Weather (Open-Meteo proxy with 15min cache)
+        static let weather = "/weather"
     }
 
     static let requestTimeout: TimeInterval = 30

@@ -52,5 +52,11 @@
     <string>Pour scanner ton passeport ou carte d'identité et auto-remplir tes informations passager.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Pour choisir ta photo de profil depuis ta photothèque.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Pour personnaliser tes recommandations et savoir quand tu approches d'une étape de ton voyage.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
 </dict>
 </plist>

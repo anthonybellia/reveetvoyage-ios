@@ -11,6 +11,9 @@ packages:
     url: https://github.com/Alamofire/Alamofire.git
     from: "5.9.0"
     # Planned for future phase: HTTP request abstraction and advanced networking features
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "7.1.0"
 
 settings:
   base:
@@ -29,11 +32,16 @@ targets:
           - "Info.plist"
     dependencies:
       - package: Alamofire
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
     settings:
       base:
         PRODUCT_NAME: ReveEtVoyage
         PRODUCT_BUNDLE_IDENTIFIER: be.reveetvoyage.app
         INFOPLIST_FILE: ReveEtVoyage/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ReveEtVoyage/ReveEtVoyage.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO

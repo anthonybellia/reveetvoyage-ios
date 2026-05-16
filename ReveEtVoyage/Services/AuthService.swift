@@ -68,9 +68,60 @@ final class AuthService: ObservableObject {
         }
     }
 
+    // MARK: - Sign in with Apple
+
+    func loginWithApple() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            let payload = try await AppleSignInService.shared.signIn()
+            let body = AppleLoginRequest(
+                identity_token: payload.identityToken,
+                email: payload.email,
+                first_name: payload.firstName,
+                last_name: payload.lastName,
+                device_token: PushService.shared.currentToken
+            )
+            let auth: AuthResponse = try await apiClient.post(
+                path: APIConfig.Endpoints.appleLogin,
+                body: body
+            )
+            handleAuth(auth)
+        } catch {
+            errorMessage = error.localizedDescription
+            isAuthenticated = false
+        }
+    }
+
+    // MARK: - Sign in with Google (id_token from GIDSignIn SDK)
+
+    func loginWithGoogle(idToken: String) async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        let body = GoogleLoginRequest(
+            id_token: idToken,
+            device_token: PushService.shared.currentToken
+        )
+        do {
+            let auth: AuthResponse = try await apiClient.post(
+                path: APIConfig.Endpoints.googleLogin,
+                body: body
+            )
+            handleAuth(auth)
+        } catch {
+            errorMessage = error.localizedDescription
+            isAuthenticated = false
+        }
+    }
+
     // MARK: - Logout
 
     func logout() async {
+        await PushService.shared.unregister()
         do {
             try await apiClient.postVoid(path: APIConfig.Endpoints.logout, requiresAuth: true)
         } catch {
@@ -184,6 +235,8 @@ final class AuthService: ObservableObject {
         currentUser = auth.user
         isAuthenticated = true
         errorMessage = nil
+        Task { await PushService.shared.registerIfAuthenticated() }
+        LocationService.shared.startIfPermitted()
     }
 
     private func clearLocalSession() {
@@ -239,6 +292,19 @@ struct UpdatePreferencesRequest: Encodable {
     let notif_emails: Bool?
     let notif_promo: Bool?
     let notif_voyages: Bool?
+}
+
+struct AppleLoginRequest: Encodable {
+    let identity_token: String
+    let email: String?
+    let first_name: String?
+    let last_name: String?
+    let device_token: String?
+}
+
+struct GoogleLoginRequest: Encodable {
+    let id_token: String
+    let device_token: String?
 }
 
 // MARK: - Response wrappers (matching real Laravel API shapes)

@@ -39,8 +39,12 @@ struct LoginView: View {
                     formCard
                         .padding(.horizontal, 24)
 
-                    footerSection
+                    socialSection
                         .padding(.top, 24)
+                        .padding(.horizontal, 24)
+
+                    footerSection
+                        .padding(.top, 16)
                         .padding(.bottom, 40)
                 }
             }
@@ -250,17 +254,35 @@ struct LoginView: View {
         )
     }
 
+    // MARK: - Social sign-in
+
+    private var socialSection: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2))
+                Text("ou continuer avec").font(.caption).foregroundColor(.revTextSecondary)
+                Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2))
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 4)
+
+            AppleSignInButton {
+                Task { await viewModel.loginWithApple() }
+            }
+            .frame(height: 48)
+
+            GoogleSignInButton {
+                Task { await viewModel.loginWithGoogle() }
+            }
+        }
+        .opacity(footerOpacity)
+        .disabled(viewModel.isLoading)
+    }
+
     // MARK: - Footer
 
     private var footerSection: some View {
         VStack(spacing: 18) {
-            HStack(spacing: 10) {
-                Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2))
-                Text("ou").font(.caption).foregroundColor(.revTextSecondary)
-                Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2))
-            }
-            .padding(.horizontal, 40)
-
             Button {
                 withAnimation(.easeInOut(duration: 0.4)) {
                     showRegister = true

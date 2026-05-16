@@ -7,6 +7,10 @@ struct EtapeNavValue: Hashable {
     static func == (lhs: EtapeNavValue, rhs: EtapeNavValue) -> Bool { lhs.etape.id == rhs.etape.id }
 }
 
+struct ExpensesNavValue: Hashable {
+    let voyageId: Int
+}
+
 struct VoyageDetailView: View {
     @StateObject private var viewModel: VoyageDetailViewModel
     @State private var celebrate: Bool = false
@@ -28,13 +32,19 @@ struct VoyageDetailView: View {
                 ErrorView(message: error) { Task { await viewModel.load() } }
             } else if let voyage = viewModel.voyage {
                 ScrollView {
-                    VStack(spacing: 20) {
-                        headerCard(voyage: voyage)
-                        progressCard(voyage: voyage)
-                        timelineSection
+                    VStack(spacing: 16) {
+                        if let heroEtape = firstGeoEtape() {
+                            VoyageHero(etape: heroEtape)
+                        }
+                        VStack(spacing: 20) {
+                            headerCard(voyage: voyage)
+                            progressCard(voyage: voyage)
+                            expensesEntryButton(voyageId: voyage.id)
+                            timelineSection
+                        }
+                        .padding(.horizontal, 18)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 16)
+                    .padding(.bottom, 16)
                 }
                 .refreshable { await viewModel.load() }
             }
@@ -58,6 +68,9 @@ struct VoyageDetailView: View {
             if let voyage = viewModel.voyage {
                 EtapeDetailView(voyage: voyage, etape: currentEtape(value.etape), viewModel: viewModel)
             }
+        }
+        .navigationDestination(for: ExpensesNavValue.self) { value in
+            ExpensesView(voyageId: value.voyageId)
         }
         .confirmationDialog(
             (pendingToggleEtape?.is_completed == true)
@@ -217,6 +230,50 @@ struct VoyageDetailView: View {
         }
     }
 
+    // MARK: - Expenses entry
+
+    private func expensesEntryButton(voyageId: Int) -> some View {
+        NavigationLink(value: ExpensesNavValue(voyageId: voyageId)) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(colors: [.revOrange, .revRed],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "creditcard.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dépenses du voyage")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(.revText)
+                    Text("Suivi des comptes entre voyageurs")
+                        .font(.system(size: 12))
+                        .foregroundColor(.revTextSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.revOrange)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.revCardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(Color.revOrange.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: Color.revOrange.opacity(0.10), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Timeline
 
     private var timelineSection: some View {
@@ -267,6 +324,121 @@ struct VoyageDetailView: View {
             }
         } else {
             UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    private func firstGeoEtape() -> VoyageEtape? {
+        let etapes = viewModel.voyage?.etapes ?? []
+        if let withCoords = etapes.first(where: { $0.hasCoordinates }) {
+            return withCoords
+        }
+        return etapes.first { ($0.adresse?.isEmpty == false) || ($0.lieu?.isEmpty == false) }
+    }
+}
+
+// MARK: - Voyage hero — map + weather card for the destination
+
+struct VoyageHero: View {
+    let etape: VoyageEtape
+
+    @State private var coordinate: CLLocationCoordinate2D? = nil
+    @State private var region: MKCoordinateRegion = MKCoordinateRegion()
+    @State private var weather: WeatherResponse? = nil
+    @State private var weatherLoading: Bool = false
+    @State private var locationLabel: String? = nil
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if let coord = coordinate {
+                Map(coordinateRegion: $region,
+                    annotationItems: [HeroPin(coordinate: coord)]) { pin in
+                    MapAnnotation(coordinate: pin.coordinate) {
+                        ZStack {
+                            Circle().fill(Color.revOrange).frame(width: 32, height: 32)
+                                .shadow(radius: 6)
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.white)
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                    }
+                }
+                .frame(height: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 0))
+                .allowsHitTesting(false)
+            }
+
+            WeatherCard(
+                weather: weather,
+                locationLabel: locationLabel,
+                isLoading: weatherLoading
+            )
+            .padding(.horizontal, 18)
+        }
+        .task(id: etape.id) {
+            await resolveAndLoad()
+        }
+    }
+
+    private struct HeroPin: Identifiable {
+        let id = UUID()
+        let coordinate: CLLocationCoordinate2D
+    }
+
+    private func resolveAndLoad() async {
+        // 1. Resolve coordinate (DB or geocode address fallback)
+        var coord: CLLocationCoordinate2D? = nil
+        if let lat = etape.latitude, let lng = etape.longitude {
+            coord = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        } else {
+            let query = [etape.adresse, etape.lieu]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+            if !query.isEmpty {
+                coord = await geocode(query)
+            }
+        }
+        guard let c = coord else { return }
+        coordinate = c
+        region = MKCoordinateRegion(
+            center: c,
+            span: MKCoordinateSpan(latitudeDelta: 0.4, longitudeDelta: 0.4)
+        )
+
+        // 2. City label
+        if let lieu = etape.lieu, !lieu.isEmpty {
+            locationLabel = lieu
+        } else {
+            locationLabel = await reverseGeocode(c) ?? etape.titre
+        }
+
+        // 3. Weather
+        weatherLoading = (weather == nil)
+        do {
+            weather = try await WeatherService.shared.fetch(latitude: c.latitude, longitude: c.longitude)
+        } catch {
+            #if DEBUG
+            print("[VoyageHero] weather failed: \(error)")
+            #endif
+        }
+        weatherLoading = false
+    }
+
+    private func geocode(_ query: String) async -> CLLocationCoordinate2D? {
+        await withCheckedContinuation { cont in
+            CLGeocoder().geocodeAddressString(query) { placemarks, _ in
+                cont.resume(returning: placemarks?.first?.location?.coordinate)
+            }
+        }
+    }
+
+    private func reverseGeocode(_ coord: CLLocationCoordinate2D) async -> String? {
+        let location = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        return await withCheckedContinuation { cont in
+            CLGeocoder().reverseGeocodeLocation(location, preferredLocale: Locale(identifier: "fr_FR")) { placemarks, _ in
+                let pm = placemarks?.first
+                cont.resume(returning: pm?.locality ?? pm?.subAdministrativeArea ?? pm?.administrativeArea)
+            }
         }
     }
 }

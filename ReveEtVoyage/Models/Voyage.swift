@@ -54,19 +54,24 @@ struct VoyageEtape: Codable, Identifiable {
     let details: String?
     let contenu_html: String?
     let image: String?
+    let fichier: String?
+    let images: [String]?
     let icon: String?
     let color: String?
     let is_completed: Bool
     let completed_at: String?
 
     var hasCoordinates: Bool { latitude != nil && longitude != nil }
+    var hasAttachments: Bool {
+        fichier != nil || !(images ?? []).isEmpty
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, ordre, type, titre, description, numero_ref, compagnie
         case date, heure, heure_retour, lieu, lieu_retour, adresse
         case latitude, longitude, cout, cout_note
         case connector_mode, connector_duration, connector_distance, details
-        case contenu_html, image, icon, color, is_completed, completed_at
+        case contenu_html, image, fichier, images, icon, color, is_completed, completed_at
     }
 }
 
