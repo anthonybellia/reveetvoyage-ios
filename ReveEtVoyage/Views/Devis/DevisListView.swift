@@ -96,6 +96,10 @@ struct DevisDetailedRow: View {
                             }
                             .foregroundColor(.revTextSecondary)
                         }
+
+                        if let owner = devis.owner {
+                            OwnerLabel(owner: owner)
+                        }
                     }
                     Spacer()
                     StatusBadge.devisStatut(devis.statut)

@@ -368,6 +368,10 @@ struct VoyageCard: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.revOrange)
                     }
+
+                    if let owner = voyage.owner {
+                        OwnerLabel(owner: owner)
+                    }
                 }
 
                 Spacer()
@@ -408,6 +412,10 @@ struct DevisRow: View {
                         Text(typ.replacingOccurrences(of: "_", with: " ").capitalized)
                             .font(.system(size: 11))
                             .foregroundColor(.revTextSecondary)
+                    }
+
+                    if let owner = devis.owner {
+                        OwnerLabel(owner: owner)
                     }
                 }
 

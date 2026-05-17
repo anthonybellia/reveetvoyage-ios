@@ -66,6 +66,10 @@ struct DevisDetailView: View {
                     }
                     .foregroundColor(.revTextSecondary)
                 }
+
+                if let owner = devis.owner {
+                    OwnerLabel(owner: owner)
+                }
             }
         }
     }
