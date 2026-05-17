@@ -213,6 +213,11 @@ struct SettingsView: View {
                         openLink("https://www.holafly.com/?ref=reveetvoyage")
                     }
                     Divider().padding(.leading, 60)
+                    settingsRow(icon: "star.bubble.fill", title: "Avis Google",
+                                subtitle: "Laisse-nous un avis", color: .red) {
+                        openLink("https://share.google/FYbXWUrKluGlWeJ9N")
+                    }
+                    Divider().padding(.leading, 60)
                     settingsRow(icon: "star.fill", title: "Noter l'app",
                                 subtitle: "Sur l'App Store", color: .yellow) {
                         openLink("https://apps.apple.com/app/id0?action=write-review")
