@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var unreadCount: Int = 0
     @State private var navPath = NavigationPath()
     @State private var openMessagesWithDraft: String? = nil
+    @State private var showDevisWizard: Bool = false
     @State private var weather: WeatherResponse? = nil
     @State private var weatherLoading: Bool = false
     @State private var weatherLocationLabel: String? = nil
@@ -77,6 +78,10 @@ struct HomeView: View {
                     navPath.append(newId)
                     deepLink.pendingVoyageId = nil
                 }
+            }
+            .fullScreenCover(isPresented: $showDevisWizard) {
+                DevisWizardView()
+                    .environmentObject(authService)
             }
         }
     }
@@ -187,9 +192,7 @@ struct HomeView: View {
                 subtitle: "Demande un devis",
                 systemImage: "airplane.departure",
                 gradient: [.revYellow, .revOrange],
-                action: {
-                    openMessagesWithDraft = "Bonjour ! J'aimerais faire une demande de voyage. Voici mes critères :\n\n• Destination : \n• Dates souhaitées : \n• Nombre de personnes : \n• Type (couple/famille/amis/solo/lune de miel) : \n• Budget approximatif : \n\nMerci !"
-                }
+                action: { showDevisWizard = true }
             )
             QuickActionCard(
                 title: "Mes passagers",
