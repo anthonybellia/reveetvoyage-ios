@@ -65,7 +65,18 @@ struct VoyageEtape: Codable, Identifiable {
 
     var hasCoordinates: Bool { latitude != nil && longitude != nil }
     var hasAttachments: Bool {
-        fichier != nil || !(images ?? []).isEmpty
+        fichier != nil || image != nil || !(images ?? []).isEmpty
+    }
+
+    var allImages: [String] {
+        var result: [String] = []
+        if let img = image, !img.isEmpty { result.append(img) }
+        if let arr = images {
+            for p in arr where !p.isEmpty && p != image {
+                result.append(p)
+            }
+        }
+        return result
     }
 
     enum CodingKeys: String, CodingKey {

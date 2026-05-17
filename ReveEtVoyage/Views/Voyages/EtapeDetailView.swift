@@ -333,15 +333,16 @@ struct EtapeDetailView: View {
 
     private var attachmentsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Images gallery
-            if let images = etape.images, !images.isEmpty {
+            // Images gallery (combines legacy `image` + new `images` array)
+            let allImages = etape.allImages
+            if !allImages.isEmpty {
                 GlassCard(padding: 16) {
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: "Photos", systemImage: "photo.stack")
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
-                                ForEach(Array(images.enumerated()), id: \.offset) { _, urlString in
+                                ForEach(Array(allImages.enumerated()), id: \.offset) { _, urlString in
                                     if let url = attachmentURL(urlString) {
                                         imageThumb(url)
                                     }
