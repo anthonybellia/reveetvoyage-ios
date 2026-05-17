@@ -701,13 +701,10 @@ private struct Step5SejourView: View {
                       selection: Binding(get: { draft.cadre }, set: { draft.cadre = $0 }),
                       multi: true)
 
-            FieldLabel("Hébergement préféré")
+            FieldLabel("Hébergement(s) préféré(s)")
             FlowChips(items: hebergements,
-                      selection: Binding(
-                          get: { draft.hebergement.isEmpty ? [] : [draft.hebergement] },
-                          set: { draft.hebergement = $0.first ?? "" }
-                      ),
-                      multi: false)
+                      selection: Binding(get: { draft.hebergement }, set: { draft.hebergement = $0 }),
+                      multi: true)
 
             FieldLabel("Besoins spécifiques (accessibilité, allergies, animaux…)")
             MultilineEditor(text: $draft.besoinsSpecifiques,

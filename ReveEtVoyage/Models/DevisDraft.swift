@@ -18,7 +18,7 @@ final class DevisDraft: ObservableObject {
     @Published var ouvertSuggestions: Bool = false
 
     @Published var cadre: Set<String> = []
-    @Published var hebergement: String = ""
+    @Published var hebergement: Set<String> = []
     @Published var besoinsSpecifiques: String = ""
 
     @Published var activites: Set<String> = []
@@ -98,6 +98,7 @@ final class DevisDraft: ObservableObject {
             cadre: nilIfEmpty(cadre),
             hebergement: nilIfEmpty(hebergement),
             besoins_specifiques: nilIfEmpty(besoinsSpecifiques),
+            // hebergement nilIfEmpty(Set) joins with ", " same as cadre/activites
             activites: nilIfEmpty(activites),
             activites_eviter: nilIfEmpty(activitesEviter),
             imperatifs: nilIfEmpty(imperatifs),
