@@ -24,6 +24,11 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 12)
 
+                    if authService.currentUser?.role == "admin" {
+                        AdminBanner()
+                            .padding(.horizontal, 20)
+                    }
+
                     quickActions
                         .padding(.horizontal, 20)
 
