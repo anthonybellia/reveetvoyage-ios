@@ -185,6 +185,30 @@ struct SettingsView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        Divider().padding(.leading, 60)
+                        NavigationLink {
+                            AdminDestinationsView()
+                        } label: {
+                            settingsRowLabel(
+                                icon: "map.fill",
+                                title: "Destinations",
+                                subtitle: "Catalogue du site",
+                                color: .revYellow
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        Divider().padding(.leading, 60)
+                        NavigationLink {
+                            AdminArticlesView()
+                        } label: {
+                            settingsRowLabel(
+                                icon: "doc.richtext.fill",
+                                title: "Articles",
+                                subtitle: "Blog & contenu éditorial",
+                                color: .revBrown
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
