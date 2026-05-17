@@ -13,6 +13,8 @@ struct Devis: Codable, Identifiable {
     let flexible_dates: String?
     let duree: String?
     let lieu_depart: String?
+    let lieux_depart: [String]?
+    let lieux_retour: [String]?
     let preferences_horaires: String?
     let destination: String?
     let destination_souhaitee: String?
@@ -33,16 +35,18 @@ struct Devis: Codable, Identifiable {
     let date_depart_prevue: String?
     let date_retour_prevue: String?
     let voyage_id: Int?
+    let passengers: [Passenger]?
     let created_at: String
     let updated_at: String
 
     enum CodingKeys: String, CodingKey {
         case id, token, nom, prenom, email, telephone, nb_personnes, participants
-        case dates_souhaitees, flexible_dates, duree, lieu_depart, preferences_horaires
+        case dates_souhaitees, flexible_dates, duree, lieu_depart, lieux_depart, lieux_retour
+        case preferences_horaires
         case destination, destination_souhaitee, ouvert_suggestions, cadre, hebergement
         case besoins_specifiques, activites, activites_eviter, imperatifs, evenement
         case budget, type_voyage, message, statut, titre_voyage, montant_estime
-        case date_depart_prevue, date_retour_prevue, voyage_id, created_at, updated_at
+        case date_depart_prevue, date_retour_prevue, voyage_id, passengers, created_at, updated_at
     }
 }
 
@@ -73,6 +77,8 @@ struct DevisCreateRequest: Encodable {
     let nb_personnes: Int?
     let participants: String?
     let lieu_depart: String?
+    let lieux_depart: [String]?
+    let lieux_retour: [String]?
     let preferences_horaires: String?
     let ouvert_suggestions: String?
     let cadre: String?
@@ -85,12 +91,14 @@ struct DevisCreateRequest: Encodable {
     let budget: String?
     let type_voyage: String
     let message: String?
+    let passenger_ids: [Int]?
 
     enum CodingKeys: String, CodingKey {
         case destination, destination_souhaitee, dates_souhaitees, flexible_dates
-        case duree, nb_personnes, participants, lieu_depart, preferences_horaires
+        case duree, nb_personnes, participants, lieu_depart, lieux_depart, lieux_retour
+        case preferences_horaires
         case ouvert_suggestions, cadre, hebergement, besoins_specifiques
         case activites, activites_eviter, imperatifs, evenement, budget
-        case type_voyage, message
+        case type_voyage, message, passenger_ids
     }
 }

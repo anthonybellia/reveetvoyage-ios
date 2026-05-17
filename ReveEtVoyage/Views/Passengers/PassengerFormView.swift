@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PassengerFormView: View {
     let passenger: Passenger?
+    var autoStartScanner: Bool = false
     let onSave: (PassengerCreateRequest) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +20,7 @@ struct PassengerFormView: View {
     @State private var notes: String = ""
     @State private var isSaving: Bool = false
     @State private var showScanner: Bool = false
+    @State private var didAutoStart: Bool = false
     @State private var scanError: String?
 
     enum DocType: String, CaseIterable, Identifiable {
@@ -127,7 +129,15 @@ struct PassengerFormView: View {
                     .disabled(prenom.isEmpty || nom.isEmpty || isSaving)
                 }
             }
-            .onAppear { hydrateForm() }
+            .onAppear {
+                hydrateForm()
+                if autoStartScanner && !didAutoStart && passenger == nil {
+                    didAutoStart = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showScanner = true
+                    }
+                }
+            }
             .fullScreenCover(isPresented: $showScanner) {
                 NavigationStack {
                     DocumentScannerView(

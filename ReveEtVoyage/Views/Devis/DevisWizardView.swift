@@ -231,35 +231,231 @@ private struct Step1IdentiteView: View {
 
 private struct Step2VoyageursView: View {
     @ObservedObject var draft: DevisDraft
+    @State private var showFormSheet: Bool = false
+    @State private var showScanFlow: Bool = false
+    @State private var showPickerSheet: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             StepHeader(title: "Parfait !",
-                       subtitle: "Combien serez-vous ? Donne-moi aussi les prénoms et âges.")
+                       subtitle: "Qui voyage avec toi ?")
 
-            FieldLabel("Nombre de voyageurs")
-            HStack(spacing: 8) {
-                ForEach([1, 2, 3, 4, 5, 6], id: \.self) { n in
-                    let label = n == 6 ? "6+" : "\(n)"
-                    Button {
-                        draft.nbPersonnes = n
-                    } label: {
-                        Text(label)
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(draft.nbPersonnes == n ? Color.revOrange : Color.revCardBackground)
-                            .foregroundColor(draft.nbPersonnes == n ? .white : .revText)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+            if !draft.selectedPassengers.isEmpty {
+                FieldLabel("Voyageurs sélectionnés (\(draft.selectedPassengers.count))")
+                VStack(spacing: 8) {
+                    ForEach(draft.selectedPassengers) { p in
+                        PassengerWizardCard(passenger: p) {
+                            draft.removePassenger(p)
+                        }
                     }
                 }
             }
 
-            FieldLabel("Détails (prénoms + âges)")
+            FieldLabel(draft.selectedPassengers.isEmpty ? "Ajouter des voyageurs" : "Ajouter d'autres voyageurs")
+
+            VStack(spacing: 10) {
+                WizardActionRow(icon: "doc.text.viewfinder",
+                                title: "Scanner pièce d'identité",
+                                subtitle: "Passeport ou CNI — auto-remplit") {
+                    showScanFlow = true
+                }
+                WizardActionRow(icon: "person.crop.rectangle.badge.plus",
+                                title: "Choisir parmi mes voyageurs",
+                                subtitle: "Sélectionne dans ta liste enregistrée") {
+                    showPickerSheet = true
+                }
+                WizardActionRow(icon: "square.and.pencil",
+                                title: "Ajouter manuellement",
+                                subtitle: "Saisis prénom, nom et dates") {
+                    showFormSheet = true
+                }
+            }
+
+            FieldLabel("Détails complémentaires (optionnel)")
             MultilineEditor(text: $draft.participants,
-                            placeholder: "Marie 8 ans, Paul 35 ans, Sophie 32 ans…",
-                            minHeight: 110)
+                            placeholder: "Notes additionnelles : âges des enfants, accompagnants non-enregistrés…",
+                            minHeight: 80)
         }
+        .sheet(isPresented: $showFormSheet) {
+            PassengerFormView(passenger: nil, autoStartScanner: false) { req in
+                await savePassenger(req)
+            }
+        }
+        .sheet(isPresented: $showScanFlow) {
+            PassengerFormView(passenger: nil, autoStartScanner: true) { req in
+                await savePassenger(req)
+            }
+        }
+        .sheet(isPresented: $showPickerSheet) {
+            PassengerPickerSheet(alreadySelectedIds: Set(draft.selectedPassengers.map { $0.id })) { picked in
+                for p in picked { draft.addPassenger(p) }
+            }
+        }
+    }
+
+    private func savePassenger(_ req: PassengerCreateRequest) async -> Bool {
+        do {
+            let created = try await PassengerService.shared.createPassenger(request: req)
+            await MainActor.run { draft.addPassenger(created) }
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
+private struct PassengerWizardCard: View {
+    let passenger: Passenger
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(LinearGradient(colors: [.revYellow, .revOrange],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 40, height: 40)
+                Text(initials)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(passenger.fullName)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(.revText)
+                if let nat = passenger.nationalite, !nat.isEmpty {
+                    Text(nat)
+                        .font(.system(size: 12))
+                        .foregroundColor(.revTextSecondary)
+                }
+            }
+            Spacer()
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill").foregroundColor(.revTextSecondary)
+            }
+        }
+        .padding(12)
+        .background(Color.revCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var initials: String {
+        let p = passenger.prenom.first.map(String.init) ?? ""
+        let n = passenger.nom.first.map(String.init) ?? ""
+        return (p + n).uppercased()
+    }
+}
+
+private struct WizardActionRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10).fill(Color.revOrange.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: icon).foregroundColor(.revOrange).font(.system(size: 18))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundColor(.revText)
+                    Text(subtitle).font(.system(size: 11)).foregroundColor(.revTextSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundColor(.revTextSecondary)
+            }
+            .padding(12)
+            .background(Color.revCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct PassengerPickerSheet: View {
+    let alreadySelectedIds: Set<Int>
+    let onPicked: ([Passenger]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var passengers: [Passenger] = []
+    @State private var isLoading = false
+    @State private var picked: Set<Int> = []
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.revBackground.ignoresSafeArea()
+
+                if isLoading {
+                    ProgressView().tint(.revOrange)
+                } else if passengers.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.2.slash").font(.system(size: 36))
+                            .foregroundColor(.revOrange.opacity(0.4))
+                        Text("Aucun voyageur enregistré").foregroundColor(.revTextSecondary)
+                        Text("Ajoute-en via 'Ajouter manuellement' ou 'Scanner pièce d'identité'.")
+                            .font(.system(size: 12)).foregroundColor(.revTextSecondary)
+                            .multilineTextAlignment(.center).padding(.horizontal, 32)
+                    }
+                } else {
+                    List(passengers) { p in
+                        let isAlready = alreadySelectedIds.contains(p.id)
+                        let isPicked = picked.contains(p.id) || isAlready
+                        Button {
+                            if !isAlready {
+                                if picked.contains(p.id) { picked.remove(p.id) } else { picked.insert(p.id) }
+                            }
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(p.fullName).font(.system(size: 15, weight: .semibold))
+                                    if let nat = p.nationalite, !nat.isEmpty {
+                                        Text(nat).font(.system(size: 12)).foregroundColor(.revTextSecondary)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: isPicked ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(isPicked ? .revOrange : .revTextSecondary)
+                            }
+                        }
+                        .listRowBackground(Color.revCardBackground)
+                        .disabled(isAlready)
+                        .opacity(isAlready ? 0.5 : 1)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("Mes voyageurs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annuler") { dismiss() }.foregroundColor(.revOrange)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Ajouter (\(picked.count))") {
+                        let chosen = passengers.filter { picked.contains($0.id) }
+                        onPicked(chosen)
+                        dismiss()
+                    }
+                    .disabled(picked.isEmpty)
+                    .foregroundColor(.revOrange)
+                }
+            }
+            .task { await loadPassengers() }
+        }
+    }
+
+    private func loadPassengers() async {
+        isLoading = true
+        do {
+            let list = try await PassengerService.shared.getPassengers()
+            passengers = list
+        } catch {
+            passengers = []
+        }
+        isLoading = false
     }
 }
 
@@ -324,83 +520,19 @@ private struct Step3DatesView: View {
 
 private struct Step4DestinationView: View {
     @ObservedObject var draft: DevisDraft
-    @State private var airportQuery: String = ""
-    @State private var airportResults: [Airport] = []
-    @State private var searchTask: Task<Void, Never>? = nil
-    @State private var isSearching = false
-
-    private let shortcuts = ["BRU", "CRL", "CDG", "ORY", "AMS", "LGG"]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
             StepHeader(title: "La destination",
-                       subtitle: "Destination rêvée — ou laisse-moi te surprendre !")
+                       subtitle: "Plusieurs aéroports possibles côté départ ET côté retour.")
 
-            FieldLabel("Aéroport de départ")
-            if !draft.lieuDepart.isEmpty {
-                HStack {
-                    Image(systemName: "airplane.departure").foregroundColor(.revOrange)
-                    Text(draft.lieuDepart)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                    Spacer()
-                    Button {
-                        draft.lieuDepart = ""
-                        airportQuery = ""
-                        airportResults = []
-                    } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundColor(.revTextSecondary)
-                    }
-                }
-                .padding(12)
-                .background(Color.revCardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                TextField("Bruxelles, Paris, Amsterdam…", text: $airportQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                    .onChange(of: airportQuery) { debounceAirport($0) }
+            AirportMultiSelector(title: "Aéroports de départ",
+                                 placeholder: "Bruxelles, Paris, Amsterdam…",
+                                 selection: $draft.lieuxDepart)
 
-                HStack(spacing: 6) {
-                    ForEach(shortcuts, id: \.self) { code in
-                        Button { selectShortcut(code) } label: {
-                            Text(code)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.revYellow.opacity(0.4))
-                                .foregroundColor(.revBrown)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
-
-                if isSearching {
-                    HStack { ProgressView().tint(.revOrange); Text("Recherche…").foregroundColor(.revTextSecondary) }
-                } else if !airportResults.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(airportResults) { airport in
-                            Button { selectAirport(airport) } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(airport.displayLabel)
-                                            .font(.system(size: 14, weight: .semibold))
-                                        Text(airport.displaySublabel)
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.revTextSecondary)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                            }
-                            .foregroundColor(.revText)
-                            Divider().background(Color.revBrown.opacity(0.1))
-                        }
-                    }
-                    .background(Color.revCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            }
+            AirportMultiSelector(title: "Aéroports de retour",
+                                 placeholder: "Même que départ si vol AR",
+                                 selection: $draft.lieuxRetour)
 
             FieldLabel("Destination souhaitée")
             TextField("Bali, Maroc, surprise…", text: $draft.destination)
@@ -411,52 +543,143 @@ private struct Step4DestinationView: View {
                 .padding(.vertical, 4)
         }
     }
+}
 
-    private func debounceAirport(_ value: String) {
+private struct AirportMultiSelector: View {
+    let title: String
+    let placeholder: String
+    @Binding var selection: [Airport]
+
+    @State private var query: String = ""
+    @State private var results: [Airport] = []
+    @State private var searchTask: Task<Void, Never>? = nil
+    @State private var isSearching = false
+
+    private let shortcuts = ["BRU", "CRL", "CDG", "ORY", "AMS", "LGG"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FieldLabel(title)
+
+            if !selection.isEmpty {
+                let cols = [GridItem(.adaptive(minimum: 90), spacing: 6)]
+                LazyVGrid(columns: cols, alignment: .leading, spacing: 6) {
+                    ForEach(selection) { a in
+                        HStack(spacing: 6) {
+                            Image(systemName: "airplane").font(.system(size: 11)).foregroundColor(.revOrange)
+                            Text(a.code)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundColor(.revBrown)
+                            Button {
+                                selection.removeAll { $0.id == a.id }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.revTextSecondary)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.revYellow.opacity(0.4))
+                        .clipShape(Capsule())
+                    }
+                }
+            }
+
+            TextField(placeholder, text: $query)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .onChange(of: query) { debounce($0) }
+
+            HStack(spacing: 6) {
+                ForEach(shortcuts, id: \.self) { code in
+                    Button { toggleShortcut(code) } label: {
+                        Text(code)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(isSelected(code) ? Color.revOrange : Color.revYellow.opacity(0.4))
+                            .foregroundColor(isSelected(code) ? .white : .revBrown)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+
+            if isSearching {
+                HStack { ProgressView().tint(.revOrange); Text("Recherche…").foregroundColor(.revTextSecondary) }
+            } else if !results.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(results) { airport in
+                        Button { add(airport) } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(airport.displayLabel).font(.system(size: 14, weight: .semibold))
+                                    Text(airport.displaySublabel).font(.system(size: 12)).foregroundColor(.revTextSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: isSelected(airport.code) ? "checkmark.circle.fill" : "plus.circle")
+                                    .foregroundColor(.revOrange)
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                        }
+                        .foregroundColor(.revText)
+                        Divider().background(Color.revBrown.opacity(0.1))
+                    }
+                }
+                .background(Color.revCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    private func isSelected(_ code: String) -> Bool {
+        selection.contains { $0.code == code }
+    }
+
+    private func add(_ a: Airport) {
+        if !isSelected(a.code) { selection.append(a) }
+        query = ""
+        results = []
+    }
+
+    private func toggleShortcut(_ code: String) {
+        if isSelected(code) {
+            selection.removeAll { $0.code == code }
+            return
+        }
+        Task {
+            do {
+                let res = try await AirportService.shared.search(query: code)
+                if let match = res.first(where: { $0.code == code }) ?? res.first {
+                    await MainActor.run { add(match) }
+                }
+            } catch {}
+        }
+    }
+
+    private func debounce(_ value: String) {
         searchTask?.cancel()
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         guard trimmed.count >= 2 else {
-            airportResults = []
+            results = []
             isSearching = false
             return
         }
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             if Task.isCancelled { return }
-            await runAirportSearch(trimmed)
+            await run(trimmed)
         }
     }
 
-    private func runAirportSearch(_ q: String) async {
+    private func run(_ q: String) async {
         isSearching = true
         do {
             let res = try await AirportService.shared.search(query: q)
-            if !Task.isCancelled { airportResults = res }
-        } catch {
-            airportResults = []
-        }
+            if !Task.isCancelled { results = res }
+        } catch { results = [] }
         isSearching = false
-    }
-
-    private func selectAirport(_ a: Airport) {
-        draft.lieuDepart = "\(a.code) — \(a.name) (\(a.city))"
-        airportQuery = ""
-        airportResults = []
-    }
-
-    private func selectShortcut(_ code: String) {
-        Task {
-            do {
-                let res = try await AirportService.shared.search(query: code)
-                if let match = res.first(where: { $0.code == code }) ?? res.first {
-                    await MainActor.run { selectAirport(match) }
-                } else {
-                    await MainActor.run { draft.lieuDepart = code }
-                }
-            } catch {
-                await MainActor.run { draft.lieuDepart = code }
-            }
-        }
     }
 }
 
