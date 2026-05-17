@@ -24,6 +24,9 @@ struct VoyageDetailView: View {
 
     @State private var showTripCompletedOverlay: Bool = false
     @State private var openNewTripMessage: Bool = false
+    @State private var showEditVoyageSheet: Bool = false
+    @State private var showDeleteVoyageConfirm: Bool = false
+    @Environment(\.dismiss) private var dismissVoyageDetail
     private let newTripDraft = "Bonjour ! Je viens de rentrer et j'aimerais préparer mon prochain voyage. Voici mes premières idées :\n\n• Destination envisagée : \n• Dates souhaitées : \n• Type de séjour : \n• Budget approximatif : \n\nMerci !"
 
     private struct AdminSheetItem: Identifiable {
@@ -133,16 +136,56 @@ struct VoyageDetailView: View {
         .toolbar {
             if isAdmin, let voyage = viewModel.voyage {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        adminSheet = AdminSheetItem(
-                            id: "create-\(voyage.id)-\(UUID())",
-                            mode: .create(voyageId: voyage.id)
-                        )
+                    Menu {
+                        Button {
+                            adminSheet = AdminSheetItem(
+                                id: "create-\(voyage.id)-\(UUID())",
+                                mode: .create(voyageId: voyage.id)
+                            )
+                        } label: {
+                            Label("Ajouter une étape", systemImage: "plus.circle")
+                        }
+                        Button {
+                            showEditVoyageSheet = true
+                        } label: {
+                            Label("Modifier le voyage", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            showDeleteVoyageConfirm = true
+                        } label: {
+                            Label("Supprimer le voyage", systemImage: "trash")
+                        }
                     } label: {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: "ellipsis.circle.fill")
                             .foregroundColor(.revOrange)
                     }
                 }
+            }
+        }
+        .sheet(isPresented: $showEditVoyageSheet) {
+            if let voyage = viewModel.voyage {
+                VoyageFormSheet(mode: .edit(voyage)) { updated in
+                    viewModel.voyage = updated
+                }
+            }
+        }
+        .confirmationDialog(
+            "Supprimer ce voyage ?",
+            isPresented: $showDeleteVoyageConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                Task {
+                    if let voyage = viewModel.voyage {
+                        try? await VoyageService.shared.deleteVoyage(id: voyage.id)
+                        dismissVoyageDetail()
+                    }
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            if let voyage = viewModel.voyage {
+                Text("\(voyage.titre) et toutes ses étapes seront supprimés définitivement.")
             }
         }
         .sheet(item: $adminSheet) { item in

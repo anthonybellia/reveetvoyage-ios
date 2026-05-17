@@ -3,6 +3,11 @@ import SwiftUI
 struct VoyageListView: View {
     @StateObject private var viewModel = VoyageListViewModel()
     @State private var selectedFilter: Filter = .all
+    @State private var showCreateSheet: Bool = false
+
+    private var isAdmin: Bool {
+        AuthService.shared.currentUser?.role == "admin"
+    }
 
     enum Filter: String, CaseIterable, Identifiable {
         case all, upcoming, past
@@ -46,6 +51,23 @@ struct VoyageListView: View {
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: Int.self) { id in
                 VoyageDetailView(voyageId: id)
+            }
+            .toolbar {
+                if isAdmin {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showCreateSheet = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.revOrange)
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showCreateSheet) {
+                VoyageFormSheet(mode: .create) { _ in
+                    Task { await viewModel.loadVoyages() }
+                }
             }
             .task { if viewModel.voyages.isEmpty { await viewModel.loadVoyages() } }
         }

@@ -45,6 +45,39 @@ final class VoyageService {
         return etape
     }
 
+    // MARK: - Admin CRUD voyage
+
+    func createVoyage(payload: VoyagePayload) async throws -> Voyage {
+        let response: APIResponse<Voyage> = try await apiClient.post(
+            path: APIConfig.Endpoints.voyages,
+            body: payload,
+            requiresAuth: true
+        )
+        guard let voyage = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Création voyage échouée")
+        }
+        return voyage
+    }
+
+    func updateVoyage(id: Int, payload: VoyagePayload) async throws -> Voyage {
+        let response: APIResponse<Voyage> = try await apiClient.put(
+            path: "\(APIConfig.Endpoints.voyages)/\(id)",
+            body: payload,
+            requiresAuth: true
+        )
+        guard let voyage = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Mise à jour voyage échouée")
+        }
+        return voyage
+    }
+
+    func deleteVoyage(id: Int) async throws {
+        try await apiClient.deleteVoid(
+            path: "\(APIConfig.Endpoints.voyages)/\(id)",
+            requiresAuth: true
+        )
+    }
+
     // MARK: - Admin CRUD étapes
 
     func createEtape(voyageId: Int, payload: EtapePayload) async throws -> VoyageEtape {
@@ -90,4 +123,18 @@ struct EtapePayload: Encodable {
     let longitude: Double?
     let contenu_html: String?
     let description: String?
+}
+
+struct VoyagePayload: Encodable {
+    let user_id: Int
+    let titre: String
+    let destination: String?
+    let date_depart: String?
+    let date_retour: String?
+    let montant_total: Double
+    let acompte_type: String?
+    let acompte_valeur: Double?
+    let statut: String?
+    let description: String?
+    let notes_admin: String?
 }
