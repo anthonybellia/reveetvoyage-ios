@@ -1,8 +1,24 @@
 import SwiftUI
 
 struct DevisDetailView: View {
-    let devis: Devis
+    @State private var devis: Devis
     @State private var appear: Bool = false
+    @State private var showEditSheet: Bool = false
+    @State private var showDeleteConfirm: Bool = false
+    @State private var showConvertConfirm: Bool = false
+    @State private var isConverting: Bool = false
+    @State private var conversionError: String? = nil
+    @State private var createdVoyageId: Int? = nil
+    @State private var showConversionSuccess: Bool = false
+    @Environment(\.dismiss) private var dismiss
+
+    private var isAdmin: Bool {
+        AuthService.shared.currentUser?.role == "admin"
+    }
+
+    init(devis: Devis) {
+        _devis = State(initialValue: devis)
+    }
 
     var body: some View {
         ScrollView {
@@ -37,6 +53,89 @@ struct DevisDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) { appear = true }
+        }
+        .toolbar {
+            if isAdmin {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Label("Modifier la demande", systemImage: "pencil")
+                        }
+                        if devis.voyage_id == nil {
+                            Button {
+                                showConvertConfirm = true
+                            } label: {
+                                Label("Convertir en voyage", systemImage: "airplane.circle")
+                            }
+                        }
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .foregroundColor(.revOrange)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            DevisFormSheet(devis: devis) { updated in
+                devis = updated
+            }
+        }
+        .confirmationDialog(
+            "Supprimer cette demande ?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                Task {
+                    try? await DevisService.shared.deleteDevis(id: devis.id)
+                    dismiss()
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("La demande de \(devis.prenom) \(devis.nom) sera supprimée définitivement.")
+        }
+        .confirmationDialog(
+            "Convertir cette demande en voyage ?",
+            isPresented: $showConvertConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(isConverting ? "Conversion…" : "Créer le voyage", role: nil) {
+                Task { await convertToVoyage() }
+            }
+            .disabled(isConverting)
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Un nouveau voyage sera créé et lié à cette demande.")
+        }
+        .alert("Conversion impossible", isPresented: .constant(conversionError != nil)) {
+            Button("OK") { conversionError = nil }
+        } message: {
+            Text(conversionError ?? "")
+        }
+        .alert("Voyage créé !", isPresented: $showConversionSuccess) {
+            Button("OK") {}
+        } message: {
+            Text("Le voyage #\(createdVoyageId ?? 0) a été créé. Tu peux le retrouver dans l'onglet Voyages.")
+        }
+    }
+
+    private func convertToVoyage() async {
+        isConverting = true
+        defer { isConverting = false }
+        do {
+            let voyageId = try await DevisService.shared.convertToVoyage(id: devis.id)
+            createdVoyageId = voyageId
+            showConversionSuccess = true
+        } catch {
+            conversionError = error.localizedDescription
         }
     }
 
