@@ -22,6 +22,10 @@ struct VoyageDetailView: View {
     @State private var pendingDeleteEtape: VoyageEtape? = nil
     @State private var showDeleteConfirm: Bool = false
 
+    @State private var showTripCompletedOverlay: Bool = false
+    @State private var openNewTripMessage: Bool = false
+    private let newTripDraft = "Bonjour ! Je viens de rentrer et j'aimerais préparer mon prochain voyage. Voici mes premières idées :\n\n• Destination envisagée : \n• Dates souhaitées : \n• Type de séjour : \n• Budget approximatif : \n\nMerci !"
+
     private struct AdminSheetItem: Identifiable {
         let id: String
         let mode: EtapeFormSheet.Mode
@@ -65,6 +69,27 @@ struct VoyageDetailView: View {
             if celebrate {
                 CelebrationOverlay(burst: confettiBurst)
                     .allowsHitTesting(false)
+            }
+
+            if showTripCompletedOverlay, let voyage = viewModel.voyage {
+                TripCompletedOverlay(
+                    voyage: voyage,
+                    onClose: {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showTripCompletedOverlay = false
+                        }
+                    },
+                    onNewTrip: {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showTripCompletedOverlay = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            openNewTripMessage = true
+                        }
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(10)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -124,6 +149,17 @@ struct VoyageDetailView: View {
             EtapeFormSheet(mode: item.mode) { saved in
                 viewModel.upsertEtape(saved)
             }
+        }
+        .sheet(isPresented: $openNewTripMessage) {
+            NavigationView {
+                MessagesView(initialDraft: newTripDraft)
+            }
+        }
+        .onChange(of: viewModel.completedCount) { _ in
+            maybeShowTripCompletedOverlay()
+        }
+        .onChange(of: viewModel.totalCount) { _ in
+            maybeShowTripCompletedOverlay()
         }
         .confirmationDialog(
             "Supprimer cette étape ?",
@@ -381,6 +417,23 @@ struct VoyageDetailView: View {
     private func showToggleConfirmFor(_ etape: VoyageEtape) {
         pendingToggleEtape = etape
         showToggleConfirm = true
+    }
+
+    private func maybeShowTripCompletedOverlay() {
+        guard let voyage = viewModel.voyage else { return }
+        guard viewModel.totalCount > 0 else { return }
+        guard viewModel.completedCount == viewModel.totalCount else { return }
+
+        let key = "trip_completed_overlay_seen_\(voyage.id)"
+        if UserDefaults.standard.bool(forKey: key) { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        // Slight delay so the per-étape confetti has time to fire first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            withAnimation(.easeIn(duration: 0.3)) {
+                showTripCompletedOverlay = true
+            }
+        }
     }
 
     private func handleToggle(_ etape: VoyageEtape) {
