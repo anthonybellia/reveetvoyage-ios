@@ -20,6 +20,14 @@ enum APIConfig {
         static func toggleEtape(voyageId: Int, etapeId: Int) -> String {
             "/voyages/\(voyageId)/etapes/\(etapeId)/toggle"
         }
+        static func etapes(voyageId: Int) -> String {
+            "/voyages/\(voyageId)/etapes"
+        }
+        static func etape(voyageId: Int, etapeId: Int) -> String {
+            "/voyages/\(voyageId)/etapes/\(etapeId)"
+        }
+        // Photon places autocomplete (public, under /api prefix)
+        static let photon = "/photon"
 
         // Devis (authenticated)
         static let devis = "/devis"

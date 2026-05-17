@@ -28,6 +28,14 @@ struct EtapeDetailView: View {
     @State private var showImageSaveSuccess: Bool = false
     @State private var showQuickLook: Bool = false
 
+    // Admin state
+    @State private var showEditSheet: Bool = false
+    @State private var showDeleteConfirm: Bool = false
+
+    private var isAdmin: Bool {
+        AuthService.shared.currentUser?.role == "admin"
+    }
+
     private var mapCoordinate: CLLocationCoordinate2D? {
         if let lat = etape.latitude, let lng = etape.longitude {
             return CLLocationCoordinate2D(latitude: lat, longitude: lng)
@@ -119,6 +127,47 @@ struct EtapeDetailView: View {
         .sheet(isPresented: $showQuickLook) {
             if let fileURL = downloadedFileURL {
                 QuickLookPreview(url: fileURL)
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            EtapeFormSheet(mode: .edit(voyageId: voyage.id, etape: etape)) { saved in
+                viewModel.upsertEtape(saved)
+            }
+        }
+        .confirmationDialog(
+            "Supprimer cette étape ?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                Task {
+                    await viewModel.deleteEtape(etape)
+                    dismiss()
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("\(etape.titre) sera supprimée définitivement.")
+        }
+        .toolbar {
+            if isAdmin {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Label("Modifier", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .foregroundColor(.revOrange)
+                    }
+                }
             }
         }
     }

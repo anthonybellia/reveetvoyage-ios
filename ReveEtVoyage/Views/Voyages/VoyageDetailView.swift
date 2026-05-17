@@ -18,6 +18,19 @@ struct VoyageDetailView: View {
     @State private var showToggleConfirm: Bool = false
     @State private var pendingToggleEtape: VoyageEtape? = nil
 
+    @State private var adminSheet: AdminSheetItem? = nil
+    @State private var pendingDeleteEtape: VoyageEtape? = nil
+    @State private var showDeleteConfirm: Bool = false
+
+    private struct AdminSheetItem: Identifiable {
+        let id: String
+        let mode: EtapeFormSheet.Mode
+    }
+
+    private var isAdmin: Bool {
+        AuthService.shared.currentUser?.role == "admin"
+    }
+
     init(voyageId: Int) {
         _viewModel = StateObject(wrappedValue: VoyageDetailViewModel(voyageId: voyageId))
     }
@@ -90,6 +103,43 @@ struct VoyageDetailView: View {
         } message: {
             if pendingToggleEtape?.is_completed == false {
                 Text("Tu peux passer à l'étape suivante. On te rappellera les prochaines.")
+            }
+        }
+        .toolbar {
+            if isAdmin, let voyage = viewModel.voyage {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        adminSheet = AdminSheetItem(
+                            id: "create-\(voyage.id)-\(UUID())",
+                            mode: .create(voyageId: voyage.id)
+                        )
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.revOrange)
+                    }
+                }
+            }
+        }
+        .sheet(item: $adminSheet) { item in
+            EtapeFormSheet(mode: item.mode) { saved in
+                viewModel.upsertEtape(saved)
+            }
+        }
+        .confirmationDialog(
+            "Supprimer cette étape ?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            if let etape = pendingDeleteEtape {
+                Button("Supprimer", role: .destructive) {
+                    Task { await viewModel.deleteEtape(etape) }
+                    pendingDeleteEtape = nil
+                }
+                Button("Annuler", role: .cancel) { pendingDeleteEtape = nil }
+            }
+        } message: {
+            if let etape = pendingDeleteEtape {
+                Text("\(etape.titre) sera supprimée définitivement.")
             }
         }
         .task { await viewModel.load() }
@@ -305,6 +355,24 @@ struct VoyageDetailView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        if isAdmin, let voyage = viewModel.voyage {
+                            Button {
+                                adminSheet = AdminSheetItem(
+                                    id: "edit-\(etape.id)-\(UUID())",
+                                    mode: .edit(voyageId: voyage.id, etape: etape)
+                                )
+                            } label: {
+                                Label("Modifier", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                pendingDeleteEtape = etape
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Supprimer", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
             }
         }

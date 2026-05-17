@@ -69,6 +69,26 @@ final class VoyageDetailViewModel: ObservableObject {
 
     var completedCount: Int { etapes.filter { $0.is_completed }.count }
     var totalCount: Int { etapes.count }
+
+    // MARK: - Admin CRUD
+
+    func upsertEtape(_ etape: VoyageEtape) {
+        if let idx = etapes.firstIndex(where: { $0.id == etape.id }) {
+            etapes[idx] = etape
+        } else {
+            etapes.append(etape)
+            etapes.sort { $0.ordre < $1.ordre }
+        }
+    }
+
+    func deleteEtape(_ etape: VoyageEtape) async {
+        do {
+            try await voyageService.deleteEtape(voyageId: voyageId, etapeId: etape.id)
+            etapes.removeAll { $0.id == etape.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }
 
 extension VoyageEtape {
