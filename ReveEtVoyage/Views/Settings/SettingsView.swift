@@ -209,6 +209,30 @@ struct SettingsView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        Divider().padding(.leading, 60)
+                        NavigationLink {
+                            AdminSettingsView()
+                        } label: {
+                            settingsRowLabel(
+                                icon: "slider.horizontal.3",
+                                title: "Paramètres site",
+                                subtitle: "Marque, paiements, SEO, socials",
+                                color: .revOrange
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        Divider().padding(.leading, 60)
+                        NavigationLink {
+                            AdminEmailTemplatesView()
+                        } label: {
+                            settingsRowLabel(
+                                icon: "envelope.fill",
+                                title: "Templates emails",
+                                subtitle: "Sujets, contenus, test d'envoi",
+                                color: .revRed
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
