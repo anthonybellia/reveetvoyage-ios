@@ -171,6 +171,21 @@ struct SettingsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+
+                    if isAdmin {
+                        Divider().padding(.leading, 60)
+                        NavigationLink {
+                            AdminUserListView()
+                        } label: {
+                            settingsRowLabel(
+                                icon: "person.2.fill",
+                                title: "Utilisateurs",
+                                subtitle: "Clients, admins, modérateurs",
+                                color: .revRed
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
