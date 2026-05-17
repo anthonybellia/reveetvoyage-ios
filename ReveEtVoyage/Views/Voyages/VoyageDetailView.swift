@@ -130,6 +130,10 @@ struct VoyageDetailView: View {
                     StatusBadge.voyageStatut(voyage.statut, label: voyage.statut_label)
                 }
 
+                if let owner = voyage.owner {
+                    OwnerLabel(owner: owner)
+                }
+
                 if voyage.date_depart != nil || voyage.date_retour != nil {
                     HStack(spacing: 18) {
                         dateChip(label: "Départ", iso: voyage.date_depart, icon: "airplane.departure")
