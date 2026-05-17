@@ -33,6 +33,8 @@ struct Devis: Codable, Identifiable {
     let date_depart_prevue: String?
     let date_retour_prevue: String?
     let voyage_id: Int?
+    /// Présent uniquement quand le viewer est administrateur (cf. `ApiOwner`).
+    let owner: ApiOwner?
     let created_at: String
     let updated_at: String
 
@@ -42,7 +44,7 @@ struct Devis: Codable, Identifiable {
         case destination, destination_souhaitee, ouvert_suggestions, cadre, hebergement
         case besoins_specifiques, activites, activites_eviter, imperatifs, evenement
         case budget, type_voyage, message, statut, titre_voyage, montant_estime
-        case date_depart_prevue, date_retour_prevue, voyage_id, created_at, updated_at
+        case date_depart_prevue, date_retour_prevue, voyage_id, owner, created_at, updated_at
     }
 }
 

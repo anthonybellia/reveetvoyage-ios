@@ -19,6 +19,8 @@ struct Voyage: Codable, Identifiable {
     let token: String
     let etapes: [VoyageEtape]?
     let payments: [Payment]?
+    /// Présent uniquement quand le viewer est administrateur (cf. `ApiOwner`).
+    let owner: ApiOwner?
     let created_at: String
     let updated_at: String
 
@@ -26,7 +28,7 @@ struct Voyage: Codable, Identifiable {
         case id, reference, titre, destination, statut, token, etapes, payments
         case date_depart, date_retour, montant_total, montant_acompte, montant_paye
         case acompte_type, acompte_valeur, statut_label, description, participants
-        case created_at, updated_at
+        case owner, created_at, updated_at
     }
 }
 
