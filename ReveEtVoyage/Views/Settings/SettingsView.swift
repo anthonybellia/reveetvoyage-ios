@@ -26,6 +26,9 @@ struct SettingsView: View {
                     accountSection
                         .padding(.horizontal, 18)
 
+                    adminBoardSection
+                        .padding(.horizontal, 18)
+
                     appSection
                         .padding(.horizontal, 18)
 
@@ -146,6 +149,58 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var adminBoardSection: some View {
+        let isAdmin = authService.currentUser?.role == "admin"
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(isAdmin ? "ADMINISTRATION" : "DOCUMENTS")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.revTextSecondary)
+                .padding(.leading, 8)
+            GlassCard(padding: 0) {
+                VStack(spacing: 0) {
+                    NavigationLink {
+                        FactureListView()
+                    } label: {
+                        settingsRowLabel(
+                            icon: "doc.text.fill",
+                            title: isAdmin ? "Factures" : "Mes factures",
+                            subtitle: isAdmin ? "Gérer toutes les factures" : "Historique de mes factures",
+                            color: .revOrange
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Reusable row label (used inside NavigationLink containers).
+    private func settingsRowLabel(icon: String, title: String, subtitle: String, color: Color) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10).fill(color.opacity(0.12))
+                    .frame(width: 38, height: 38)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(color)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.revText)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.revTextSecondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.revTextSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 
     private var appSection: some View {
