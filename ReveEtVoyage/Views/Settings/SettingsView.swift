@@ -147,6 +147,16 @@ struct SettingsView: View {
                             subtitle: "Discussions avec l'équipe", color: .revYellow) {
                     showMessages = true
                 }
+                Divider().padding(.leading, 60)
+                NavigationLink(destination: PackingTemplateView()) {
+                    settingsRowLabel(
+                        icon: "suitcase.fill",
+                        title: "Ma liste de bagage",
+                        subtitle: "Ta liste type réutilisable",
+                        color: .revOrange
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
     }

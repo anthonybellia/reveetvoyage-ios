@@ -11,6 +11,10 @@ struct ExpensesNavValue: Hashable {
     let voyageId: Int
 }
 
+struct PackingNavValue: Hashable {
+    let voyageId: Int
+}
+
 struct VoyageDetailView: View {
     @StateObject private var viewModel: VoyageDetailViewModel
     @State private var celebrate: Bool = false
@@ -60,6 +64,7 @@ struct VoyageDetailView: View {
                             headerCard(voyage: voyage)
                             progressCard(voyage: voyage)
                             expensesEntryButton(voyageId: voyage.id)
+                            packingEntryButton(voyageId: voyage.id)
                             timelineSection
                         }
                         .padding(.horizontal, 18)
@@ -112,6 +117,9 @@ struct VoyageDetailView: View {
         }
         .navigationDestination(for: ExpensesNavValue.self) { value in
             ExpensesView(voyageId: value.voyageId)
+        }
+        .navigationDestination(for: PackingNavValue.self) { value in
+            PackingView(voyageId: value.voyageId)
         }
         .confirmationDialog(
             (pendingToggleEtape?.is_completed == true)
@@ -383,6 +391,50 @@ struct VoyageDetailView: View {
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundColor(.revText)
                     Text("Suivi des comptes entre voyageurs")
+                        .font(.system(size: 12))
+                        .foregroundColor(.revTextSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.revOrange)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.revCardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(Color.revOrange.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: Color.revOrange.opacity(0.10), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Packing entry
+
+    private func packingEntryButton(voyageId: Int) -> some View {
+        NavigationLink(value: PackingNavValue(voyageId: voyageId)) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(colors: [.revOrange, .revRed],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "suitcase.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Liste de bagage")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(.revText)
+                    Text("Prépare ta valise avant le départ")
                         .font(.system(size: 12))
                         .foregroundColor(.revTextSecondary)
                 }
