@@ -4,6 +4,7 @@ struct VoyageListView: View {
     @StateObject private var viewModel = VoyageListViewModel()
     @State private var selectedFilter: Filter = .all
     @State private var showCreateSheet: Bool = false
+    @State private var pendingInvites: Int = 0
 
     private var isAdmin: Bool {
         AuthService.shared.isAdmin
@@ -53,6 +54,26 @@ struct VoyageListView: View {
                 VoyageDetailView(voyageId: id)
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        InvitationsView()
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "envelope")
+                                .foregroundColor(.revOrange)
+                            if pendingInvites > 0 {
+                                Text("\(pendingInvites)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .frame(minWidth: 14, minHeight: 14)
+                                    .background(Color.revRed)
+                                    .clipShape(Capsule())
+                                    .offset(x: 8, y: -8)
+                            }
+                        }
+                    }
+                }
                 if isAdmin {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -69,7 +90,24 @@ struct VoyageListView: View {
                     Task { await viewModel.loadVoyages() }
                 }
             }
-            .task { if viewModel.voyages.isEmpty { await viewModel.loadVoyages() } }
+            .task {
+                if viewModel.voyages.isEmpty { await viewModel.loadVoyages() }
+                await loadPendingInvites()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .voyagesShouldRefresh)) { _ in
+                Task { await viewModel.refresh() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .invitationsDidChange)) { _ in
+                Task { await loadPendingInvites() }
+            }
+        }
+    }
+
+    private func loadPendingInvites() async {
+        do {
+            pendingInvites = try await VoyageService.shared.fetchInvitations().count
+        } catch {
+            pendingInvites = 0
         }
     }
 

@@ -26,6 +26,17 @@ struct VoyageMembersView: View {
 
     @State private var removingUserId: Int? = nil
 
+    // MARK: - Autocomplete invitation
+    /// Utilisateur trouvé par recherche d'email exact (carte de confirmation).
+    @State private var matchedUser: UserSearchResult? = nil
+    /// Vrai pendant l'appel debouncé à `users/search`.
+    @State private var isSearching = false
+    /// Vrai quand la recherche s'est terminée sans correspondance (email valide
+    /// mais aucun compte) → on indique « invitation par email ».
+    @State private var searchedNoMatch = false
+    /// Tâche de debounce en cours (annulée à chaque frappe).
+    @State private var searchTask: Task<Void, Never>? = nil
+
     /// Message de retour affiché après une invitation / un retrait.
     private struct Feedback: Identifiable {
         let id = UUID()
@@ -134,10 +145,23 @@ struct VoyageMembersView: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .strokeBorder(Color.revOrange.opacity(0.25), lineWidth: 1)
                         )
+                        .onChange(of: inviteEmail) { _ in scheduleSearch() }
+
+                    if isSearching {
+                        ProgressView().tint(.revOrange).scaleEffect(0.8)
+                    }
+                }
+
+                // Résultat de l'autocomplete : carte de confirmation si un compte
+                // correspond, sinon indication « invitation par email ».
+                if let matchedUser {
+                    matchedUserChip(matchedUser)
+                } else if searchedNoMatch {
+                    noMatchHint
                 }
 
                 BrandButton(
-                    title: "Inviter",
+                    title: inviteButtonTitle,
                     systemImage: "paperplane.fill",
                     isLoading: isInviting,
                     style: .primary
@@ -155,6 +179,54 @@ struct VoyageMembersView: View {
                 }
             }
         }
+    }
+
+    /// Libellé du bouton d'invitation : adapté au résultat de l'autocomplete.
+    private var inviteButtonTitle: String {
+        if let matchedUser { return "Inviter \(matchedUser.displayName)" }
+        return "Inviter"
+    }
+
+    /// Carte de confirmation quand un compte correspond à l'email saisi.
+    private func matchedUserChip(_ user: UserSearchResult) -> some View {
+        HStack(spacing: 10) {
+            AvatarView(
+                firstName: firstNameOf(user.displayName),
+                lastName: lastNameOf(user.displayName),
+                avatarPath: user.avatar_url,
+                size: 36
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(user.displayName)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(.revText)
+                Text(user.email)
+                    .font(.system(size: 11))
+                    .foregroundColor(.revTextSecondary)
+            }
+            Spacer()
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18))
+                .foregroundColor(.revOrange)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.revOrange.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.revOrange.opacity(0.25), lineWidth: 1))
+        .transition(.opacity)
+    }
+
+    /// Indication affichée quand aucun compte ne correspond à l'email valide saisi.
+    private var noMatchHint: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "envelope.badge")
+                .font(.system(size: 14))
+                .foregroundColor(.revTextSecondary)
+            Text("Aucun compte — invitation par email.")
+                .font(.system(size: 12))
+                .foregroundColor(.revTextSecondary)
+            Spacer()
+        }
+        .transition(.opacity)
     }
 
     // MARK: - Carte liste des membres
@@ -296,6 +368,49 @@ struct VoyageMembersView: View {
             )
     }
 
+    // MARK: - Autocomplete (debounce ~400ms)
+
+    /// Programme une recherche debouncée après chaque frappe. Annule la tâche
+    /// précédente pour ne lancer l'appel réseau qu'après 400ms d'inactivité.
+    private func scheduleSearch() {
+        searchTask?.cancel()
+        let email = trimmedEmail
+
+        // Réinitialise l'état tant que l'email n'est pas plausible.
+        guard email.contains("@"), email.count >= 5 else {
+            matchedUser = nil
+            searchedNoMatch = false
+            isSearching = false
+            return
+        }
+
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            if Task.isCancelled { return }
+
+            await MainActor.run { isSearching = true }
+            do {
+                let result = try await VoyageService.shared.searchUser(email: email)
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    withAnimation {
+                        matchedUser = result
+                        searchedNoMatch = (result == nil)
+                    }
+                    isSearching = false
+                }
+            } catch {
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    // En cas d'erreur réseau, on n'affiche pas de fausse indication.
+                    matchedUser = nil
+                    searchedNoMatch = false
+                    isSearching = false
+                }
+            }
+        }
+    }
+
     // MARK: - Réseau
 
     private func load() async {
@@ -319,7 +434,12 @@ struct VoyageMembersView: View {
         do {
             try await VoyageService.shared.inviteMember(voyageId: voyageId, email: trimmedEmail, role: "collaborator")
             inviteEmail = ""
-            withAnimation { feedback = Feedback(text: "Invitation envoyée.", isError: false) }
+            searchTask?.cancel()
+            withAnimation {
+                matchedUser = nil
+                searchedNoMatch = false
+                feedback = Feedback(text: "Invitation envoyée.", isError: false)
+            }
             await load()
         } catch {
             withAnimation { feedback = Feedback(text: inviteErrorMessage(error), isError: true) }

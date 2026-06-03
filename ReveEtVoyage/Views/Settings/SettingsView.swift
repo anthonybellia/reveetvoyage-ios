@@ -199,6 +199,16 @@ struct SettingsView: View {
                     showMessages = true
                 }
                 Divider().padding(.leading, 60)
+                NavigationLink(destination: InvitationsView()) {
+                    settingsRowLabel(
+                        icon: "envelope.open.fill",
+                        title: "Mes invitations",
+                        subtitle: "Voyages partagés en attente",
+                        color: .revRed
+                    )
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.leading, 60)
                 NavigationLink(destination: PackingTemplateView()) {
                     settingsRowLabel(
                         icon: "suitcase.fill",

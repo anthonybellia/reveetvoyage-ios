@@ -12,7 +12,18 @@ final class AuthService: ObservableObject {
     /// Mode "aperçu client" : quand un admin l'active, toute l'UI réservée aux
     /// admins est masquée afin de prévisualiser l'expérience d'un voyageur normal.
     /// N'affecte JAMAIS les permissions réelles côté serveur ni le `role` réel.
-    @Published var previewAsUser: Bool = false
+    ///
+    /// La valeur est persistée dans `UserDefaults` (clé `PreviewState`) pour que
+    /// le client HTTP (`APIClient`, non isolé sur le MainActor) puisse la lire sans
+    /// franchir de frontière d'acteur. Tout changement déclenche un rafraîchissement
+    /// de la liste des voyages via la notification `.voyagesShouldRefresh`.
+    @Published var previewAsUser: Bool = PreviewState.isPreviewing {
+        didSet {
+            guard previewAsUser != oldValue else { return }
+            PreviewState.isPreviewing = previewAsUser
+            NotificationCenter.default.post(name: .voyagesShouldRefresh, object: nil)
+        }
+    }
 
     /// Vrai si l'utilisateur est admin ET qu'il n'est pas en mode aperçu client.
     /// À utiliser pour TOUTES les conditions qui affichent des contrôles admin.
@@ -160,6 +171,7 @@ final class AuthService: ObservableObject {
             )
             currentUser = me.user
             isAuthenticated = true
+            PreviewState.isRealAdmin = (me.user.role == "admin")
             keychain.saveUserId(me.user.id)
         } catch {
             clearLocalSession()
@@ -252,6 +264,7 @@ final class AuthService: ObservableObject {
         keychain.saveUserId(auth.user.id)
         currentUser = auth.user
         isAuthenticated = true
+        PreviewState.isRealAdmin = (auth.user.role == "admin")
         errorMessage = nil
         Task { await PushService.shared.registerIfAuthenticated() }
         LocationService.shared.startIfPermitted()
@@ -264,6 +277,36 @@ final class AuthService: ObservableObject {
         isAuthenticated = false
         errorMessage = nil
         previewAsUser = false
+        PreviewState.isRealAdmin = false
+    }
+}
+
+// MARK: - Preview state (partagé avec APIClient)
+
+/// Petit miroir des deux booléens nécessaires à l'injection de l'en-tête
+/// `X-Preview-As-User` côté `APIClient`. Stocké dans `UserDefaults` afin d'être
+/// lisible depuis un contexte non isolé sur le MainActor (le client HTTP) sans
+/// dépendre de `AuthService` (`@MainActor`).
+enum PreviewState {
+    private static let previewKey = "previewAsUser"
+    private static let realAdminKey = "previewState.isRealAdmin"
+
+    /// Vrai si l'admin a activé l'aperçu client.
+    static var isPreviewing: Bool {
+        get { UserDefaults.standard.bool(forKey: previewKey) }
+        set { UserDefaults.standard.set(newValue, forKey: previewKey) }
+    }
+
+    /// Vrai si le compte connecté est réellement admin (indépendant de l'aperçu).
+    static var isRealAdmin: Bool {
+        get { UserDefaults.standard.bool(forKey: realAdminKey) }
+        set { UserDefaults.standard.set(newValue, forKey: realAdminKey) }
+    }
+
+    /// L'en-tête `X-Preview-As-User: 1` ne doit partir QUE si un vrai admin
+    /// est en mode aperçu client. Tout autre cas → aucun en-tête.
+    static var shouldSendPreviewHeader: Bool {
+        isRealAdmin && isPreviewing
     }
 }
 

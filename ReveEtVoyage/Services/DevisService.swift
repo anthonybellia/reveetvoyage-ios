@@ -73,6 +73,39 @@ final class DevisService {
         }
         return r.voyage_id
     }
+
+    // MARK: - Notes internes (admin)
+
+    /// Récupère la liste des notes internes threadées d'un devis.
+    /// Réservé aux admins côté serveur.
+    func fetchNotes(devisId: Int) async throws -> [DevisNote] {
+        let response: APIResponse<[DevisNote]> = try await apiClient.get(
+            path: "\(APIConfig.Endpoints.devis)/\(devisId)/notes",
+            requiresAuth: true
+        )
+        return response.data ?? []
+    }
+
+    /// Ajoute une note interne au devis et renvoie la note créée.
+    func addNote(devisId: Int, contenu: String) async throws -> DevisNote {
+        let response: APIResponse<DevisNote> = try await apiClient.post(
+            path: "\(APIConfig.Endpoints.devis)/\(devisId)/notes",
+            body: DevisNoteCreateRequest(contenu: contenu),
+            requiresAuth: true
+        )
+        guard let note = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Échec de l'ajout de la note")
+        }
+        return note
+    }
+
+    /// Supprime une note interne du devis. La réponse `{ok:true}` est ignorée.
+    func deleteNote(devisId: Int, noteId: Int) async throws {
+        let _: VoidResponse = try await apiClient.delete(
+            path: "\(APIConfig.Endpoints.devis)/\(devisId)/notes/\(noteId)",
+            requiresAuth: true
+        )
+    }
 }
 
 struct DevisAdminPayload: Encodable {

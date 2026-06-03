@@ -80,6 +80,48 @@ final class VoyageService {
         )
     }
 
+    // MARK: - Invitation : autocomplete & réponses
+
+    /// Recherche un utilisateur par email **exact** (autocomplete invitation).
+    /// Renvoie `nil` si aucun compte ne correspond (`{ data: null }`), auquel cas
+    /// l'invitation se fera par email simple via `inviteMember`.
+    func searchUser(email: String) async throws -> UserSearchResult? {
+        let response: APIResponse<UserSearchResult> = try await apiClient.get(
+            path: APIConfig.Endpoints.usersSearch,
+            queryParams: ["email": email],
+            requiresAuth: true
+        )
+        return response.data
+    }
+
+    /// Liste les invitations en attente reçues par l'utilisateur courant.
+    func fetchInvitations() async throws -> [VoyageInvitation] {
+        let response: InvitationsResponse = try await apiClient.get(
+            path: APIConfig.Endpoints.invitations,
+            requiresAuth: true
+        )
+        return response.data
+    }
+
+    /// Accepte l'invitation au voyage donné. Renvoie `true` si le compte a bien
+    /// été lié au voyage (`linked`).
+    @discardableResult
+    func acceptInvitation(voyageId: Int) async throws -> Bool {
+        let response: InvitationActionResponse = try await apiClient.post(
+            path: APIConfig.Endpoints.acceptInvitation(voyageId: voyageId),
+            requiresAuth: true
+        )
+        return response.linked ?? (response.ok ?? false)
+    }
+
+    /// Refuse l'invitation au voyage donné.
+    func declineInvitation(voyageId: Int) async throws {
+        let _: InvitationActionResponse = try await apiClient.post(
+            path: APIConfig.Endpoints.declineInvitation(voyageId: voyageId),
+            requiresAuth: true
+        )
+    }
+
     // MARK: - Admin CRUD voyage
 
     func createVoyage(payload: VoyagePayload) async throws -> Voyage {

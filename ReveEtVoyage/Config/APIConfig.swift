@@ -37,6 +37,23 @@ enum APIConfig {
         // Photon places autocomplete (public, under /api prefix)
         static let photon = "/photon"
 
+        // Recherche utilisateur (autocomplete invitation) — match email exact
+        static let usersSearch = "/users/search"
+
+        // Invitations reçues par l'utilisateur courant
+        static let invitations = "/invitations"
+        static func acceptInvitation(voyageId: Int) -> String {
+            "/voyages/\(voyageId)/invitations/accept"
+        }
+        static func declineInvitation(voyageId: Int) -> String {
+            "/voyages/\(voyageId)/invitations/decline"
+        }
+
+        // Notifications serveur (cloche)
+        static let notifications = "/notifications"
+        static func notificationRead(id: Int) -> String { "/notifications/\(id)/read" }
+        static let notificationsReadAll = "/notifications/read-all"
+
         // Devis (authenticated)
         static let devis = "/devis"
 

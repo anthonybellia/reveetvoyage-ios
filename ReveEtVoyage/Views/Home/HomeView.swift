@@ -72,6 +72,12 @@ struct HomeView: View {
             .onChange(of: locationService.lastKnownLocation) { _ in
                 Task { await loadWeather() }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .notificationsDidChange)) { _ in
+                Task { await loadUnreadCount() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .invitationsDidChange)) { _ in
+                Task { await loadUnreadCount() }
+            }
             .navigationDestination(for: Int.self) { id in
                 VoyageDetailView(voyageId: id)
             }
@@ -91,11 +97,10 @@ struct HomeView: View {
     }
 
     private func loadUnreadCount() async {
-        do {
-            unreadCount = try await MessageService.shared.unreadCount()
-        } catch {
-            unreadCount = 0
-        }
+        // Badge cloche = notifications serveur non lues + messages non lus.
+        let messages = (try? await MessageService.shared.unreadCount()) ?? 0
+        let notifs = (try? await NotificationService.shared.unreadCount()) ?? 0
+        unreadCount = messages + notifs
     }
 
     private func loadWeather() async {
@@ -158,7 +163,7 @@ struct HomeView: View {
             Spacer()
 
             NavigationLink {
-                NotificationsView()
+                AppNotificationsView()
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell.fill")

@@ -69,6 +69,23 @@ final class APIClient {
         return token != nil
     }
 
+    // MARK: - Auth headers (point d'injection unique)
+
+    /// Pose le Bearer token et, le cas échéant, l'en-tête `X-Preview-As-User: 1`.
+    /// Point UNIQUE d'injection des en-têtes d'authentification : appelé par toutes
+    /// les constructions d'`URLRequest` authentifiées (requêtes JSON + multipart).
+    /// L'en-tête d'aperçu n'est ajouté que pour un vrai admin en mode aperçu client
+    /// (`PreviewState.shouldSendPreviewHeader`) et jamais sur une requête anonyme.
+    private func applyAuthHeaders(to request: inout URLRequest) throws {
+        guard let token = self.token else {
+            throw NetworkError.unauthorized
+        }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if PreviewState.shouldSendPreviewHeader {
+            request.setValue("1", forHTTPHeaderField: "X-Preview-As-User")
+        }
+    }
+
     // MARK: - Generic request
 
     func request<T: Decodable>(
@@ -99,10 +116,7 @@ final class APIClient {
         }
 
         if requiresAuth {
-            guard let token = self.token else {
-                throw NetworkError.unauthorized
-            }
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try applyAuthHeaders(to: &request)
         }
 
         if let body = body {
@@ -227,8 +241,7 @@ final class APIClient {
             request.setValue("ReveEtVoyage-iOS/\(appVersion)", forHTTPHeaderField: "User-Agent")
         }
         if requiresAuth {
-            guard let token = self.token else { throw NetworkError.unauthorized }
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try applyAuthHeaders(to: &request)
         }
 
         var body = Data()

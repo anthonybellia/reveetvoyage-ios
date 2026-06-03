@@ -10,6 +10,13 @@ struct DevisDetailView: View {
     @State private var conversionError: String? = nil
     @State private var createdVoyageId: Int? = nil
     @State private var showConversionSuccess: Bool = false
+
+    // Notes internes threadées (admin uniquement)
+    @State private var notes: [DevisNote] = []
+    @State private var notesLoading: Bool = false
+    @State private var notesError: String? = nil
+    @State private var newNoteText: String = ""
+    @State private var isAddingNote: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     private var isAdmin: Bool {
@@ -39,6 +46,11 @@ struct DevisDetailView: View {
                     messageCard(message)
                         .padding(.horizontal, 18)
                 }
+
+                if isAdmin {
+                    notesCard
+                        .padding(.horizontal, 18)
+                }
             }
             .padding(.bottom, 30)
             .opacity(appear ? 1 : 0)
@@ -53,6 +65,9 @@ struct DevisDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) { appear = true }
+        }
+        .task {
+            if isAdmin { await loadNotes() }
         }
         .toolbar {
             if isAdmin {
@@ -260,6 +275,163 @@ struct DevisDetailView: View {
                     .font(.system(size: 14))
                     .foregroundColor(.revText)
             }
+        }
+    }
+
+    // MARK: - Notes internes (admin)
+
+    private var notesCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionTitle(title: "Notes internes", systemImage: "lock.doc.fill",
+                             trailing: notes.isEmpty ? nil : "\(notes.count)")
+
+                if notesLoading && notes.isEmpty {
+                    HStack {
+                        ProgressView()
+                        Text("Chargement…")
+                            .font(.system(size: 13))
+                            .foregroundColor(.revTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+                } else if let notesError {
+                    VStack(spacing: 8) {
+                        Text(notesError)
+                            .font(.system(size: 13))
+                            .foregroundColor(.revRed)
+                            .multilineTextAlignment(.center)
+                        BrandButton(title: "Réessayer", style: .ghost) {
+                            Task { await loadNotes() }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                } else if notes.isEmpty {
+                    Text("Aucune note pour l'instant. Ajoute une note visible uniquement par les administrateurs.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.revTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(notes) { note in
+                            noteRow(note)
+                        }
+                    }
+                }
+
+                Divider()
+                    .padding(.vertical, 2)
+
+                composer
+            }
+        }
+    }
+
+    private func noteRow(_ note: DevisNote) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.revOrange)
+                    Text(note.author)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(.revText)
+                    Spacer(minLength: 4)
+                    Text(noteDateLabel(note.created_at))
+                        .font(.system(size: 11))
+                        .foregroundColor(.revTextSecondary)
+                }
+                Text(note.contenu)
+                    .font(.system(size: 14))
+                    .foregroundColor(.revText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                Task { await deleteNote(note) }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.revRed)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Supprimer la note")
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.revYellow.opacity(0.10))
+        )
+    }
+
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("Ajouter une note interne…", text: $newNoteText, axis: .vertical)
+                .font(.system(size: 14))
+                .lineLimit(1...4)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
+                )
+
+            BrandButton(
+                title: "Ajouter",
+                systemImage: "plus.circle.fill",
+                isLoading: isAddingNote,
+                style: .primary
+            ) {
+                Task { await addNote() }
+            }
+            .disabled(newNoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAddingNote)
+            .opacity(newNoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.6 : 1)
+        }
+    }
+
+    private func noteDateLabel(_ raw: String) -> String {
+        guard let date = raw.toDate() else { return raw }
+        return date.formatted(dateStyle: .medium, timeStyle: .short)
+    }
+
+    // MARK: - Notes actions
+
+    private func loadNotes() async {
+        notesLoading = true
+        notesError = nil
+        defer { notesLoading = false }
+        do {
+            notes = try await DevisService.shared.fetchNotes(devisId: devis.id)
+        } catch {
+            notesError = error.localizedDescription
+        }
+    }
+
+    private func addNote() async {
+        let trimmed = newNoteText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isAddingNote = true
+        defer { isAddingNote = false }
+        do {
+            _ = try await DevisService.shared.addNote(devisId: devis.id, contenu: trimmed)
+            newNoteText = ""
+            await loadNotes()
+        } catch {
+            notesError = error.localizedDescription
+        }
+    }
+
+    private func deleteNote(_ note: DevisNote) async {
+        do {
+            try await DevisService.shared.deleteNote(devisId: devis.id, noteId: note.id)
+            await loadNotes()
+        } catch {
+            notesError = error.localizedDescription
         }
     }
 }
