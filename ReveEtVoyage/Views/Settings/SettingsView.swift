@@ -23,6 +23,11 @@ struct SettingsView: View {
                         .padding(.horizontal, 18)
                         .padding(.top, 8)
 
+                    if authService.isRealAdmin {
+                        adminPreviewToggle
+                            .padding(.horizontal, 18)
+                    }
+
                     accountSection
                         .padding(.horizontal, 18)
 
@@ -128,6 +133,52 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Bascule admin / aperçu client
+
+    /// Toggle réservé aux vrais admins : bascule entre le mode admin et le mode
+    /// aperçu client (prévisualisation de l'expérience d'un voyageur normal).
+    /// Visible en permanence pour pouvoir ressortir du mode aperçu.
+    private var adminPreviewToggle: some View {
+        let preview = authService.previewAsUser
+        return GlassCard(padding: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    authService.previewAsUser.toggle()
+                }
+            } label: {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill((preview ? Color.revBrown : Color.revOrange).opacity(0.12))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: preview ? "eye" : "person.crop.circle.badge.checkmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(preview ? .revBrown : .revOrange)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(preview ? "Aperçu client" : "Mode admin")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.revText)
+                        Text(preview
+                             ? "Tu vois ce que voit le voyageur. Touche pour revenir."
+                             : "Touche pour prévisualiser l'expérience client.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.revTextSecondary)
+                    }
+                    Spacer()
+                    Text(preview ? "Quitter" : "Aperçu")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(preview ? Color.revBrown : Color.revOrange))
+                }
+                .padding(14)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Sections
 
     private var accountSection: some View {
@@ -162,7 +213,7 @@ struct SettingsView: View {
     }
 
     private var adminBoardSection: some View {
-        let isAdmin = authService.currentUser?.role == "admin"
+        let isAdmin = authService.isAdmin
         return VStack(alignment: .leading, spacing: 8) {
             Text(isAdmin ? "ADMINISTRATION" : "DOCUMENTS")
                 .font(.caption.weight(.semibold))

@@ -9,6 +9,24 @@ final class AuthService: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
+    /// Mode "aperçu client" : quand un admin l'active, toute l'UI réservée aux
+    /// admins est masquée afin de prévisualiser l'expérience d'un voyageur normal.
+    /// N'affecte JAMAIS les permissions réelles côté serveur ni le `role` réel.
+    @Published var previewAsUser: Bool = false
+
+    /// Vrai si l'utilisateur est admin ET qu'il n'est pas en mode aperçu client.
+    /// À utiliser pour TOUTES les conditions qui affichent des contrôles admin.
+    /// Pour connaître le rôle réel (ex. afficher le toggle), lire `currentUser?.role`.
+    var isAdmin: Bool {
+        (currentUser?.role == "admin") && !previewAsUser
+    }
+
+    /// Vrai si le compte connecté est réellement admin, indépendamment du mode aperçu.
+    /// Sert uniquement à décider d'afficher le bouton de bascule admin/aperçu.
+    var isRealAdmin: Bool {
+        currentUser?.role == "admin"
+    }
+
     private let apiClient = APIClient.shared
     private let keychain = KeychainHelper.shared
 
@@ -245,6 +263,7 @@ final class AuthService: ObservableObject {
         currentUser = nil
         isAuthenticated = false
         errorMessage = nil
+        previewAsUser = false
     }
 }
 

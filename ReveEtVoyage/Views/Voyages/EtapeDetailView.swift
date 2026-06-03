@@ -33,7 +33,7 @@ struct EtapeDetailView: View {
     @State private var showDeleteConfirm: Bool = false
 
     private var isAdmin: Bool {
-        AuthService.shared.currentUser?.role == "admin"
+        AuthService.shared.isAdmin
     }
 
     private var mapCoordinate: CLLocationCoordinate2D? {
@@ -60,8 +60,13 @@ struct EtapeDetailView: View {
                         .padding(.horizontal, 18)
                 }
 
-                if let description = etape.description, !description.isEmpty {
-                    descriptionCard(description)
+                // Description riche : on privilégie le HTML de l'éditeur (contenu_html),
+                // sinon on retombe sur la description en texte brut.
+                if let html = etape.contenu_html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    descriptionCard(html: html)
+                        .padding(.horizontal, 18)
+                } else if let description = etape.description, !description.isEmpty {
+                    descriptionCard(text: description)
                         .padding(.horizontal, 18)
                 }
 
@@ -303,6 +308,10 @@ struct EtapeDetailView: View {
         if let hr = etape.heure_retour, !hr.isEmpty {
             rows.append(("arrow.uturn.backward", "Heure retour", hr))
         }
+        // Trajet inter-étapes : mode de transport + durée · distance
+        if let transport = connectorInfo {
+            rows.append(transport)
+        }
         if let adresse = etape.adresse, !adresse.isEmpty {
             rows.append(("location.fill", "Adresse", adresse))
         }
@@ -319,6 +328,47 @@ struct EtapeDetailView: View {
             rows.append(("eurosign.circle.fill", "Coût", String(format: "%.0f €", cout)))
         }
         return rows.map { (icon: $0.0, label: $0.1, value: $0.2) }
+    }
+
+    // Construit la ligne "Transport" à partir des champs connector_* de l'API.
+    // Renvoie nil si aucune info de trajet n'est disponible.
+    private var connectorInfo: (icon: String, label: String, value: String)? {
+        let mode = etape.connector_mode?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let duration = etape.connector_duration?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let distance = etape.connector_distance?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let hasMode = !(mode ?? "").isEmpty
+        let hasDuration = !(duration ?? "").isEmpty
+        let hasDistance = !(distance ?? "").isEmpty
+        guard hasMode || hasDuration || hasDistance else { return nil }
+
+        let mapping = transportMapping(for: mode)
+
+        // Valeur : "1h25 · 1061 km" (on nettoie les séparateurs résiduels de l'API).
+        var parts: [String] = []
+        if hasDuration { parts.append(duration!) }
+        if hasDistance {
+            // L'API peut renvoyer "1061 km · " avec un séparateur en trop.
+            let cleaned = distance!.trimmingCharacters(in: CharacterSet(charactersIn: " ·"))
+            if !cleaned.isEmpty { parts.append(cleaned) }
+        }
+        let value = parts.isEmpty ? mapping.label : parts.joined(separator: " · ")
+
+        return (icon: mapping.icon, label: "Transport — \(mapping.label)", value: value)
+    }
+
+    // Associe un mode de transport (API) à un SF Symbol + libellé français.
+    private func transportMapping(for mode: String?) -> (icon: String, label: String) {
+        switch mode?.lowercased() {
+        case "car": return ("car.fill", "Voiture")
+        case "train": return ("tram.fill", "Train")
+        case "plane": return ("airplane", "Avion")
+        case "bus": return ("bus.fill", "Bus")
+        case "navette": return ("bus.fill", "Navette")
+        case "taxi": return ("car.fill", "Taxi")
+        case "walk": return ("figure.walk", "À pied")
+        default: return ("arrow.right.circle.fill", "Trajet")
+        }
     }
 
     private var infoCard: some View {
@@ -346,13 +396,24 @@ struct EtapeDetailView: View {
         }
     }
 
-    private func descriptionCard(_ text: String) -> some View {
+    // Carte "Notes" en texte brut (fallback quand contenu_html est absent).
+    private func descriptionCard(text: String) -> some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 10) {
                 SectionTitle(title: "Notes", systemImage: "note.text")
                 Text(text)
                     .font(.system(size: 14))
                     .foregroundColor(.revText)
+            }
+        }
+    }
+
+    // Carte "Notes" rendue à partir du HTML de l'éditeur riche (contenu_html).
+    private func descriptionCard(html: String) -> some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionTitle(title: "Notes", systemImage: "note.text")
+                HTMLText(html: html)
             }
         }
     }
@@ -472,7 +533,75 @@ struct EtapeDetailView: View {
                     }
                 }
             }
+
+            // Billets / Tickets attachés à l'étape (PDF, image…).
+            if let tickets = etape.tickets, !tickets.isEmpty {
+                GlassCard(padding: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionTitle(title: "Billets / Tickets", systemImage: "ticket.fill")
+
+                        VStack(spacing: 10) {
+                            ForEach(tickets) { ticket in
+                                ticketRow(ticket)
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    /// Ligne d'un billet : icône selon le type, tap pour ouvrir/prévisualiser.
+    private func ticketRow(_ ticket: EtapeTicket) -> some View {
+        Button {
+            guard let url = attachmentURL(ticket.url) else { return }
+            if ticket.is_image {
+                // Aperçu plein écran via le visualiseur d'images existant.
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    fullScreenImageURL = url
+                }
+            } else {
+                // PDF / autres documents : on réutilise le mécanisme QuickLook.
+                openDocument(url)
+            }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.revOrange.opacity(0.12))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: ticketIcon(for: ticket))
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(.revOrange)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(ticket.name.isEmpty ? documentName(from: ticket.url) : ticket.name)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(.revText)
+                        .lineLimit(1)
+                    Text(ticket.ext.uppercased())
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.revTextSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.revOrange)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color.revOrange.opacity(0.12)))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Icône d'un billet : pdf → `doc.fill`, image → `photo`, sinon `doc.fill`.
+    private func ticketIcon(for ticket: EtapeTicket) -> String {
+        if ticket.is_pdf { return "doc.fill" }
+        if ticket.is_image { return "photo" }
+        return "doc.fill"
     }
 
     private func imageThumb(_ url: URL) -> some View {
@@ -686,33 +815,9 @@ struct EtapeDetailView: View {
 
     // MARK: - Helpers
 
-    private var stepIcon: String {
-        switch etape.type {
-        case "vol", "vol_aller", "vol_retour": return "airplane"
-        case "hotel": return "bed.double.fill"
-        case "activite": return "figure.walk"
-        case "transfert": return "car.fill"
-        case "restaurant": return "fork.knife"
-        case "note": return "note.text"
-        case "document": return "doc.fill"
-        default: return "circle.fill"
-        }
-    }
-
-    private var typeLabel: String {
-        switch etape.type {
-        case "vol_aller": return "Vol aller"
-        case "vol_retour": return "Vol retour"
-        case "vol": return "Vol"
-        case "hotel": return "Hôtel"
-        case "activite": return "Activité"
-        case "transfert": return "Transfert"
-        case "restaurant": return "Restaurant"
-        case "note": return "Note"
-        case "document": return "Document"
-        default: return etape.type.capitalized
-        }
-    }
+    // Icône + libellé du type d'étape via la source unique partagée.
+    private var stepIcon: String { EtapeTypeInfo.resolve(etape.type).icon }
+    private var typeLabel: String { EtapeTypeInfo.resolve(etape.type).label }
 
     private func openInApplePlans(lat: Double, lng: Double) {
         let coord = CLLocationCoordinate2D(latitude: lat, longitude: lng)
@@ -761,5 +866,62 @@ private struct QuickLookPreview: UIViewControllerRepresentable {
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
             url as QLPreviewItem
         }
+    }
+}
+
+// MARK: - HTMLText (rendu du HTML de l'éditeur riche en texte formaté)
+
+/// Affiche une chaîne HTML sous forme de texte formaté (gras, listes, liens…).
+/// Réutilisable partout où l'API renvoie un champ `contenu_html`.
+///
+/// Le parsing NSAttributedString(documentType: .html) DOIT s'exécuter sur le
+/// main thread (UIKit). On garde donc le rendu synchrone ici (les notes
+/// d'étapes sont courtes). En cas d'échec de parsing, on retombe sur le texte
+/// brut nettoyé de ses balises.
+struct HTMLText: View {
+    let html: String
+
+    var body: some View {
+        Text(attributed)
+            .font(.system(size: 14))
+            .foregroundColor(.revText)
+            .tint(.revOrange) // couleur des liens
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var attributed: AttributedString {
+        // On enrobe le HTML pour forcer la police/taille de base (sinon Times 12pt par défaut).
+        let styled = """
+        <style>
+        body { font-family: -apple-system, sans-serif; font-size: 14px; }
+        </style>
+        \(html)
+        """
+
+        guard let data = styled.data(using: .utf8) else {
+            return AttributedString(strippedPlainText)
+        }
+
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ]
+
+        if let ns = try? NSAttributedString(data: data, options: options, documentAttributes: nil),
+           let converted = try? AttributedString(ns, including: \.swiftUI) {
+            return converted
+        }
+
+        // Repli : texte brut débarrassé de ses balises HTML.
+        return AttributedString(strippedPlainText)
+    }
+
+    // Supprime grossièrement les balises HTML pour le fallback.
+    private var strippedPlainText: String {
+        html
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

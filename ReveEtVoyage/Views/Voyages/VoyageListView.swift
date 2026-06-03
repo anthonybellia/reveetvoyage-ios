@@ -6,7 +6,7 @@ struct VoyageListView: View {
     @State private var showCreateSheet: Bool = false
 
     private var isAdmin: Bool {
-        AuthService.shared.currentUser?.role == "admin"
+        AuthService.shared.isAdmin
     }
 
     enum Filter: String, CaseIterable, Identifiable {

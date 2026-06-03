@@ -8,7 +8,7 @@ struct FactureListView: View {
     @State private var canLoadMore: Bool = true
 
     private var isAdmin: Bool {
-        AuthService.shared.currentUser?.role == "admin"
+        AuthService.shared.isAdmin
     }
 
     var body: some View {

@@ -24,8 +24,12 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 12)
 
-                    if authService.currentUser?.role == "admin" {
+                    if authService.isAdmin {
                         AdminBanner()
+                            .padding(.horizontal, 20)
+                    } else if authService.isRealAdmin {
+                        // Admin en mode aperçu client : rappel + sortie rapide.
+                        PreviewModeBanner()
                             .padding(.horizontal, 20)
                     }
 

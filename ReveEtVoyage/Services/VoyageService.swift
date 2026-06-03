@@ -45,6 +45,41 @@ final class VoyageService {
         return etape
     }
 
+    // MARK: - Membres / collaboration voyage
+
+    /// Récupère les membres (propriétaire + collaborateurs) et les invitations
+    /// en attente d'un voyage. La réponse est brute (`{members, pending}`),
+    /// pas encapsulée dans `{data}`, donc on décode `VoyageMembersResponse`.
+    func fetchMembers(voyageId: Int) async throws -> (members: [VoyageMember], pending: [PendingInvite]) {
+        let response: VoyageMembersResponse = try await apiClient.get(
+            path: "\(APIConfig.Endpoints.voyages)/\(voyageId)/members",
+            requiresAuth: true
+        )
+        return (response.members, response.pending)
+    }
+
+    /// Invite quelqu'un par email à collaborer sur le voyage.
+    /// Le backend renvoie `{ok:true, linked:true}` (utilisateur existant lié)
+    /// ou `{ok:true, pending:true}` (invitation en attente). On ignore le corps
+    /// utile ici : seul le succès HTTP nous intéresse. Les cas 403 (pas
+    /// propriétaire/admin) et 422 (déjà propriétaire) remontent en `NetworkError`.
+    func inviteMember(voyageId: Int, email: String, role: String? = "collaborator") async throws {
+        let body = InviteMemberPayload(email: email, role: role)
+        let _: MemberActionResponse = try await apiClient.post(
+            path: "\(APIConfig.Endpoints.voyages)/\(voyageId)/members",
+            body: body,
+            requiresAuth: true
+        )
+    }
+
+    /// Retire un membre (utilisateur lié) du voyage.
+    func removeMember(voyageId: Int, userId: Int) async throws {
+        let _: MemberActionResponse = try await apiClient.delete(
+            path: "\(APIConfig.Endpoints.voyages)/\(voyageId)/members/\(userId)",
+            requiresAuth: true
+        )
+    }
+
     // MARK: - Admin CRUD voyage
 
     func createVoyage(payload: VoyagePayload) async throws -> Voyage {
@@ -110,6 +145,19 @@ final class VoyageService {
             requiresAuth: true
         )
     }
+}
+
+struct InviteMemberPayload: Encodable {
+    let email: String
+    let role: String?
+}
+
+/// Réponse brute des endpoints membres en écriture (`POST`/`DELETE`),
+/// du type `{ "ok": true, "linked"/"pending": true }`. On ne lit que `ok`.
+struct MemberActionResponse: Decodable {
+    let ok: Bool?
+    let linked: Bool?
+    let pending: Bool?
 }
 
 struct EtapePayload: Encodable {

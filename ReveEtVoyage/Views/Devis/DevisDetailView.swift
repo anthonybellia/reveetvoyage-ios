@@ -13,7 +13,7 @@ struct DevisDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var isAdmin: Bool {
-        AuthService.shared.currentUser?.role == "admin"
+        AuthService.shared.isAdmin
     }
 
     init(devis: Devis) {

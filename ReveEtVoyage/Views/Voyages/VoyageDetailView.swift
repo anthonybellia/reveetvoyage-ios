@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import QuickLook
 
 struct EtapeNavValue: Hashable {
     let etape: VoyageEtape
@@ -30,6 +31,16 @@ struct VoyageDetailView: View {
     @State private var openNewTripMessage: Bool = false
     @State private var showEditVoyageSheet: Bool = false
     @State private var showDeleteVoyageConfirm: Bool = false
+    @State private var showMembersSheet: Bool = false
+    /// Étape dont les infos sont présentées en feuille via le bouton « Infos »
+    /// de la timeline (Feature 1), sans repush de NavigationLink.
+    @State private var infosEtape: VoyageEtape? = nil
+
+    // État de la carte récap billets (Feature 4).
+    @State private var openingTicketId: String? = nil   // url du billet en cours d'ouverture
+    @State private var recapImageURL: URL? = nil        // billet image plein écran
+    @State private var recapQuickLookURL: URL? = nil    // billet PDF/doc téléchargé
+    @State private var showRecapQuickLook: Bool = false
     @Environment(\.dismiss) private var dismissVoyageDetail
     private let newTripDraft = "Bonjour ! Je viens de rentrer et j'aimerais préparer mon prochain voyage. Voici mes premières idées :\n\n• Destination envisagée : \n• Dates souhaitées : \n• Type de séjour : \n• Budget approximatif : \n\nMerci !"
 
@@ -39,7 +50,7 @@ struct VoyageDetailView: View {
     }
 
     private var isAdmin: Bool {
-        AuthService.shared.currentUser?.role == "admin"
+        AuthService.shared.isAdmin
     }
 
     init(voyageId: Int) {
@@ -63,6 +74,8 @@ struct VoyageDetailView: View {
                         VStack(spacing: 20) {
                             headerCard(voyage: voyage)
                             progressCard(voyage: voyage)
+                            ticketsRecapCard(voyage: voyage)
+                            membersEntryButton(voyageId: voyage.id)
                             expensesEntryButton(voyageId: voyage.id)
                             packingEntryButton(voyageId: voyage.id)
                             timelineSection
@@ -98,6 +111,12 @@ struct VoyageDetailView: View {
                 )
                 .transition(.opacity)
                 .zIndex(10)
+            }
+
+            // Billet image (carte récap, Feature 4) en plein écran.
+            if let url = recapImageURL {
+                recapImageOverlay(url)
+                    .zIndex(20)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -199,6 +218,25 @@ struct VoyageDetailView: View {
         .sheet(item: $adminSheet) { item in
             EtapeFormSheet(mode: item.mode) { saved in
                 viewModel.upsertEtape(saved)
+            }
+        }
+        .sheet(isPresented: $showMembersSheet) {
+            if let voyage = viewModel.voyage {
+                VoyageMembersView(voyageId: voyage.id, owner: voyage.owner)
+            }
+        }
+        // Détail d'étape ouvert via le bouton « Infos » de la timeline (Feature 1).
+        .sheet(item: $infosEtape) { etape in
+            if let voyage = viewModel.voyage {
+                NavigationView {
+                    EtapeDetailView(voyage: voyage, etape: etape, viewModel: viewModel)
+                }
+            }
+        }
+        // Billet PDF/document ouvert depuis la carte récap (Feature 4).
+        .sheet(isPresented: $showRecapQuickLook) {
+            if let url = recapQuickLookURL {
+                EtapeTicketQuickLook(url: url)
             }
         }
         .sheet(isPresented: $openNewTripMessage) {
@@ -371,6 +409,211 @@ struct VoyageDetailView: View {
         }
     }
 
+    // MARK: - Tickets recap (Feature 4)
+
+    /// Paire (billet, étape parente) pour la carte récap.
+    private struct VoyageTicketRef: Identifiable {
+        let ticket: EtapeTicket
+        let etape: VoyageEtape
+        var id: String { "\(etape.id)-\(ticket.url)" }
+    }
+
+    /// Tous les billets du voyage, à plat, avec leur étape parente.
+    private func allVoyageTickets(_ voyage: Voyage) -> [VoyageTicketRef] {
+        let etapes = viewModel.etapes.isEmpty ? (voyage.etapes ?? []) : viewModel.etapes
+        return etapes.flatMap { etape in
+            (etape.tickets ?? []).map { VoyageTicketRef(ticket: $0, etape: etape) }
+        }
+    }
+
+    /// Carte récap listant TOUS les billets du voyage, tappables.
+    /// Masquée si aucune étape n'a de billet.
+    @ViewBuilder
+    private func ticketsRecapCard(voyage: Voyage) -> some View {
+        let refs = allVoyageTickets(voyage)
+        if !refs.isEmpty {
+            GlassCard(padding: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(title: "Tous les billets", systemImage: "ticket.fill")
+
+                    VStack(spacing: 10) {
+                        ForEach(refs) { ref in
+                            Button {
+                                openVoyageTicket(ref.ticket)
+                            } label: {
+                                HStack(spacing: 14) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color.revOrange.opacity(0.12))
+                                            .frame(width: 44, height: 44)
+                                        Image(systemName: ref.ticket.is_image ? "photo" : "doc.fill")
+                                            .font(.system(size: 20, weight: .semibold))
+                                            .foregroundColor(.revOrange)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        // Titre/description de l'étape parente.
+                                        Text(ref.etape.titre)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.revText)
+                                            .lineLimit(1)
+                                        let subtitle = ref.ticket.name.isEmpty
+                                            ? ref.ticket.ext.uppercased()
+                                            : ref.ticket.name
+                                        Text(subtitle)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.revTextSecondary)
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer()
+
+                                    if openingTicketId == ref.ticket.url {
+                                        ProgressView().tint(.revOrange)
+                                            .frame(width: 36, height: 36)
+                                    } else {
+                                        Image(systemName: "eye.fill")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(.revOrange)
+                                            .frame(width: 36, height: 36)
+                                            .background(Circle().fill(Color.revOrange.opacity(0.12)))
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(openingTicketId != nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Construit l'URL absolue d'un billet (chemins relatifs ou absolus).
+    private func voyageTicketURL(_ path: String) -> URL? {
+        if path.hasPrefix("http") { return URL(string: path) }
+        let base = APIConfig.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
+    }
+
+    /// Ouvre un billet depuis la carte récap : image → overlay plein écran,
+    /// PDF/doc → QuickLook (téléchargement local), repli Safari si échec.
+    private func openVoyageTicket(_ ticket: EtapeTicket) {
+        guard let url = voyageTicketURL(ticket.url) else { return }
+        if ticket.is_image {
+            withAnimation(.easeInOut(duration: 0.25)) { recapImageURL = url }
+            return
+        }
+        guard openingTicketId == nil else { return }
+        openingTicketId = ticket.url
+        Task {
+            do {
+                let (localURL, _) = try await URLSession.shared.download(from: url)
+                let ext = (url.lastPathComponent as NSString).pathExtension
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension(ext.isEmpty ? "pdf" : ext)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: localURL, to: dest)
+                await MainActor.run {
+                    openingTicketId = nil
+                    recapQuickLookURL = dest
+                    showRecapQuickLook = true
+                }
+            } catch {
+                await MainActor.run {
+                    openingTicketId = nil
+                    UIApplication.shared.open(url)
+                }
+            }
+        }
+    }
+
+    /// Overlay plein écran d'un billet image (carte récap), fermé au tap.
+    private func recapImageOverlay(_ url: URL) -> some View {
+        ZStack {
+            Color.black.opacity(0.92)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.25)) { recapImageURL = nil }
+                }
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { recapImageURL = nil }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                Spacer()
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fit).padding(.horizontal, 12)
+                    default:
+                        ProgressView().tint(.white)
+                    }
+                }
+                Spacer()
+            }
+        }
+        .transition(.opacity)
+    }
+
+    // MARK: - Members entry
+
+    /// Ouvre la feuille de gestion des voyageurs / membres du voyage.
+    /// Visible par tout le monde ; les actions d'invitation / retrait sont
+    /// gérées (et gatées) à l'intérieur de `VoyageMembersView`.
+    private func membersEntryButton(voyageId: Int) -> some View {
+        Button {
+            showMembersSheet = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(colors: [.revOrange, .revRed],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Voyageurs / Membres")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(.revText)
+                    Text("Invite et gère les collaborateurs du voyage")
+                        .font(.system(size: 12))
+                        .foregroundColor(.revTextSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.revOrange)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.revCardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(Color.revOrange.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: Color.revOrange.opacity(0.10), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Expenses entry
 
     private func expensesEntryButton(voyageId: Int) -> some View {
@@ -482,7 +725,8 @@ struct VoyageDetailView: View {
                             isFirst: index == 0,
                             isLast: index == viewModel.etapes.count - 1,
                             isToggling: viewModel.togglingEtapeIds.contains(etape.id),
-                            onToggle: { showToggleConfirmFor(etape) }
+                            onToggle: { showToggleConfirmFor(etape) },
+                            onOpenInfos: { infosEtape = currentEtape(etape) }
                         )
                     }
                     .buttonStyle(.plain)
@@ -671,8 +915,18 @@ struct EtapeRow: View {
     let isLast: Bool
     let isToggling: Bool
     let onToggle: () -> Void
+    /// Ouvre le détail de l'étape (bouton « Infos »). Câblé par le parent.
+    var onOpenInfos: () -> Void = {}
 
     @State private var checkBounce: CGFloat = 1
+
+    // État pour l'ouverture directe d'un billet (Feature 1), sans passer
+    // par le détail de l'étape. Réutilise QuickLook (PDF/doc) et un overlay
+    // plein écran (image), à l'image de EtapeDetailView.
+    @State private var fullScreenImageURL: URL? = nil
+    @State private var quickLookURL: URL? = nil
+    @State private var showQuickLook: Bool = false
+    @State private var isOpeningTicket: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -693,6 +947,153 @@ struct EtapeRow: View {
             etapeContent
                 .padding(.bottom, isLast ? 0 : 12)
         }
+        // Overlay plein écran pour un billet image ouvert depuis la timeline.
+        .overlay {
+            if let url = fullScreenImageURL {
+                ticketImageOverlay(url)
+            }
+        }
+        // QuickLook pour un billet PDF/document ouvert depuis la timeline.
+        .sheet(isPresented: $showQuickLook) {
+            if let fileURL = quickLookURL {
+                EtapeTicketQuickLook(url: fileURL)
+            }
+        }
+    }
+
+    // MARK: - Feature 1 : boutons rapides (billet / infos)
+
+    /// Petites puces tappables affichées dans la ligne de timeline.
+    /// - « Billet » : ouvre directement le premier billet de l'étape.
+    /// - « Infos »  : ouvre le détail de l'étape (callback parent).
+    /// Affichées uniquement si l'étape a un billet et/ou une note.
+    @ViewBuilder
+    private var quickActionChips: some View {
+        let firstTicket = etape.tickets?.first
+        let hasNote = !etape.notePreview.isEmpty
+        if firstTicket != nil || hasNote {
+            HStack(spacing: 8) {
+                if let ticket = firstTicket {
+                    Button {
+                        openTicket(ticket)
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isOpeningTicket {
+                                ProgressView()
+                                    .tint(.revOrange)
+                                    .scaleEffect(0.6)
+                            } else {
+                                Image(systemName: "ticket.fill")
+                                    .font(.system(size: 10, weight: .semibold))
+                            }
+                            Text("Billet")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(.revOrange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.revOrange.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isOpeningTicket)
+                }
+
+                if hasNote {
+                    Button {
+                        onOpenInfos()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Infos")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(.revBrown)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.revYellow.opacity(0.25)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    /// Construit l'URL absolue d'un billet (gère chemins relatifs et absolus).
+    private func ticketURL(_ path: String) -> URL? {
+        if path.hasPrefix("http") { return URL(string: path) }
+        let base = APIConfig.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
+    }
+
+    /// Ouvre un billet : image → overlay plein écran ; PDF/doc → QuickLook
+    /// (téléchargement local puis prévisualisation), repli Safari si échec.
+    private func openTicket(_ ticket: EtapeTicket) {
+        guard let url = ticketURL(ticket.url) else { return }
+        if ticket.is_image {
+            withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = url }
+            return
+        }
+        guard !isOpeningTicket else { return }
+        isOpeningTicket = true
+        Task {
+            do {
+                let (localURL, _) = try await URLSession.shared.download(from: url)
+                let ext = (url.lastPathComponent as NSString).pathExtension
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension(ext.isEmpty ? "pdf" : ext)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: localURL, to: dest)
+                await MainActor.run {
+                    isOpeningTicket = false
+                    quickLookURL = dest
+                    showQuickLook = true
+                }
+            } catch {
+                await MainActor.run {
+                    isOpeningTicket = false
+                    UIApplication.shared.open(url)
+                }
+            }
+        }
+    }
+
+    /// Overlay plein écran d'un billet image, fermé au tap.
+    private func ticketImageOverlay(_ url: URL) -> some View {
+        ZStack {
+            Color.black.opacity(0.92)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = nil }
+                }
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = nil }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                Spacer()
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fit).padding(.horizontal, 12)
+                    default:
+                        ProgressView().tint(.white)
+                    }
+                }
+                Spacer()
+            }
+        }
+        .transition(.opacity)
     }
 
     private var checkBubble: some View {
@@ -742,17 +1143,14 @@ struct EtapeRow: View {
         .disabled(isToggling)
     }
 
-    private var stepIcon: String {
-        switch etape.type {
-        case "vol", "vol_aller", "vol_retour": return "airplane"
-        case "hotel": return "bed.double.fill"
-        case "activite": return "figure.walk"
-        case "transfert": return "car.fill"
-        case "restaurant": return "fork.knife"
-        case "note": return "note.text"
-        case "document": return "doc.fill"
-        default: return "circle.fill"
-        }
+    // Icône du type d'étape via la source unique partagée (cf. EtapeTypeInfo).
+    private var stepIcon: String { EtapeTypeInfo.resolve(etape.type).icon }
+
+    /// Construit l'URL absolue d'une couverture (gère chemins relatifs et absolus).
+    private func etapeCoverURL(_ path: String) -> URL? {
+        if path.hasPrefix("http") { return URL(string: path) }
+        let base = APIConfig.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
     }
 
     private var etapeContent: some View {
@@ -778,12 +1176,23 @@ struct EtapeRow: View {
 
                     Spacer()
 
+                    // Badge billet : signale qu'au moins un ticket est attaché.
+                    if etape.hasTickets {
+                        Image(systemName: "ticket.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.revOrange)
+                            .padding(.trailing, 2)
+                    }
+
                     if let date = etape.date?.toDate() {
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "fr_BE"))))
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .foregroundColor(.revOrange)
-                            if let heure = etape.heure {
+                            // Heure optionnelle : on n'affiche la ligne que si une
+                            // heure non vide est réellement présente (Feature 2).
+                            if let heure = etape.heure?.trimmingCharacters(in: .whitespaces),
+                               !heure.isEmpty {
                                 Text(heure)
                                     .font(.system(size: 10))
                                     .foregroundColor(.revTextSecondary)
@@ -792,12 +1201,20 @@ struct EtapeRow: View {
                     }
                 }
 
-                if let description = etape.description, !description.isEmpty {
-                    Text(description)
+                // Aperçu de la note : on privilégie la description en texte brut,
+                // sinon on retombe sur contenu_html nettoyé de ses balises HTML
+                // (sinon les étapes dont le contenu n'existe que dans contenu_html
+                //  — ex. notes saisies via l'éditeur riche web — n'affichaient rien).
+                if !etape.notePreview.isEmpty {
+                    Text(etape.notePreview)
                         .font(.system(size: 12))
                         .foregroundColor(.revTextSecondary)
                         .lineLimit(3)
                 }
+
+                // Boutons rapides (Feature 1) : ouvrent directement le billet
+                // ou les infos sans devoir d'abord ouvrir le détail de l'étape.
+                quickActionChips
 
                 if let cout = etape.cout, cout > 0 {
                     HStack(spacing: 4) {
@@ -809,8 +1226,15 @@ struct EtapeRow: View {
                     .foregroundColor(.revOrange)
                 }
 
-                if etape.hasCoordinates,
-                   let lat = etape.latitude, let lng = etape.longitude {
+                // Visuel de l'étape : si une image de couverture existe, on
+                // l'affiche à la place de la mini-carte (même taille/emplacement).
+                // Sinon on retombe sur la mini-carte quand on a des coordonnées.
+                if let cover = etape.coverImage,
+                   let coverURL = etapeCoverURL(cover) {
+                    EtapeCoverThumb(url: coverURL)
+                        .padding(.top, 6)
+                } else if etape.hasCoordinates,
+                          let lat = etape.latitude, let lng = etape.longitude {
                     EtapeMiniMap(latitude: lat, longitude: lng,
                                  title: etape.titre, address: etape.adresse ?? etape.lieu)
                         .padding(.top, 6)
@@ -818,6 +1242,42 @@ struct EtapeRow: View {
             }
         }
         .opacity(etape.is_completed ? 0.75 : 1)
+    }
+}
+
+/// Vignette de couverture d'une étape affichée dans la timeline,
+/// calibrée sur la même taille/forme que `EtapeMiniMap`.
+struct EtapeCoverThumb: View {
+    let url: URL
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            case .failure:
+                ZStack {
+                    Color.revCardBackground
+                    Image(systemName: "photo")
+                        .font(.system(size: 22))
+                        .foregroundColor(.revTextSecondary)
+                }
+            default:
+                ZStack {
+                    Color.revCardBackground
+                    ProgressView().tint(.revOrange)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 110)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
+        )
     }
 }
 
@@ -984,6 +1444,34 @@ struct CelebrationOverlay: View {
                 particles[i].rotation += Double.random(in: 180...720)
                 particles[i].scale = CGFloat.random(in: 0.8...1.4)
             }
+        }
+    }
+}
+
+// MARK: - QuickLook (prévisualisation d'un billet PDF/document)
+
+/// Petit wrapper QLPreviewController réutilisé pour ouvrir un billet
+/// directement depuis la timeline ou la carte récap (Features 1 & 4).
+/// (Distinct du `QuickLookPreview` privé de EtapeDetailView.)
+struct EtapeTicketQuickLook: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Coordinator { Coordinator(url: url) }
+
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return UINavigationController(rootViewController: controller)
+    }
+
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {}
+
+    final class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        init(url: URL) { self.url = url }
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            url as QLPreviewItem
         }
     }
 }

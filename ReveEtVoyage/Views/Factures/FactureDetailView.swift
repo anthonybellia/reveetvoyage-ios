@@ -11,7 +11,7 @@ struct FactureDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var isAdmin: Bool {
-        AuthService.shared.currentUser?.role == "admin"
+        AuthService.shared.isAdmin
     }
 
     init(facture: Facture) {
