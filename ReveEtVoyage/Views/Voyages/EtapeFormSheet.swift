@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 /// Admin-only form to create or edit a voyage étape.
 /// Reuses PlaceAutocompleteView for lieu/coordinates picking.
@@ -32,6 +34,20 @@ struct EtapeFormSheet: View {
     @State private var isSaving: Bool = false
     @State private var errorMessage: String? = nil
     @State private var showPlacePicker: Bool = false
+
+    // MARK: - Couverture & billets (edit only)
+    /// Copie mutable de l'étape en cours d'édition. Reflète les changements de
+    /// couverture / billets après upload sans avoir à refermer la feuille.
+    @State private var currentEtape: VoyageEtape? = nil
+    @State private var coverItem: PhotosPickerItem? = nil
+    @State private var ticketItems: [PhotosPickerItem] = []
+    @State private var showTicketDocPicker: Bool = false
+    @State private var isUploadingCover: Bool = false
+    @State private var isUploadingTicket: Bool = false
+    @State private var deletingTicketURL: String? = nil
+    /// Vrai juste après une première création réussie dans cette feuille, pour
+    /// signaler à l'admin qu'il peut maintenant ajouter couverture / billets.
+    @State private var justCreated: Bool = false
 
     /// Liste complète des types d'étape, alignée sur l'admin web et les valeurs
     /// `type` stockées en base (chaînes exactes utilisées par le backend).
@@ -67,6 +83,7 @@ struct EtapeFormSheet: View {
                 dateHeureSection
                 lieuSection
                 descriptionSection
+                attachmentsSection
 
                 if let err = errorMessage {
                     Section {
@@ -100,7 +117,8 @@ struct EtapeFormSheet: View {
             .sheet(isPresented: $showPlacePicker) {
                 PlaceAutocompleteView(
                     centerLatitude: latitude,
-                    centerLongitude: longitude
+                    centerLongitude: longitude,
+                    placeFilter: placeFilter
                 ) { place in
                     lieu = place.name
                     adresse = place.address
@@ -110,6 +128,21 @@ struct EtapeFormSheet: View {
                         titre = place.name
                     }
                 }
+            }
+            .onChange(of: coverItem) { newItem in
+                guard let newItem else { return }
+                Task { await handleCoverPick(newItem) }
+            }
+            .onChange(of: ticketItems) { newItems in
+                guard !newItems.isEmpty else { return }
+                Task { await handleTicketPicks(newItems) }
+            }
+            .fileImporter(
+                isPresented: $showTicketDocPicker,
+                allowedContentTypes: [.pdf],
+                allowsMultipleSelection: true
+            ) { result in
+                handleTicketDocs(result)
             }
         }
     }
@@ -198,6 +231,108 @@ struct EtapeFormSheet: View {
         }
     }
 
+    /// Couverture + billets. L'upload nécessite une étape déjà enregistrée (id).
+    /// En mode création, on invite l'admin à enregistrer d'abord.
+    @ViewBuilder
+    private var attachmentsSection: some View {
+        if let etape = currentEtape {
+            if justCreated {
+                Section {
+                    Label("Étape enregistrée. Ajoutez une couverture et des billets ci-dessous, puis « Enregistrer » pour terminer.",
+                          systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.green)
+                }
+            }
+            // MARK: Couverture
+            Section("Image de couverture") {
+                if let cover = etape.coverImage, let url = URL(string: cover) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                        default:
+                            Color.revCardBackground
+                        }
+                    }
+                    .frame(height: 140)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .cornerRadius(8)
+                    .listRowInsets(EdgeInsets())
+                }
+                PhotosPicker(selection: $coverItem, matching: .images) {
+                    HStack {
+                        if isUploadingCover {
+                            ProgressView().tint(.revOrange)
+                        } else {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .foregroundColor(.revOrange)
+                        }
+                        Text(etape.coverImage == nil ? "Ajouter une couverture" : "Changer la couverture")
+                            .font(.system(size: 14))
+                            .foregroundColor(.revText)
+                    }
+                }
+                .disabled(isUploadingCover)
+            }
+
+            // MARK: Billets
+            Section("Billets") {
+                ForEach(etape.tickets ?? []) { ticket in
+                    HStack(spacing: 10) {
+                        Image(systemName: ticket.is_pdf ? "doc.fill" : "photo.fill")
+                            .foregroundColor(.revOrange)
+                        Text(ticket.name)
+                            .font(.system(size: 13))
+                            .foregroundColor(.revText)
+                            .lineLimit(1)
+                        Spacer()
+                        if deletingTicketURL == ticket.url {
+                            ProgressView().tint(.revOrange)
+                        } else {
+                            Button(role: .destructive) {
+                                Task { await deleteTicket(ticket) }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 13))
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
+                PhotosPicker(selection: $ticketItems, matching: .images) {
+                    Label("Ajouter une image", systemImage: "photo")
+                        .font(.system(size: 14))
+                }
+                .disabled(isUploadingTicket)
+                Button {
+                    showTicketDocPicker = true
+                } label: {
+                    Label("Ajouter un PDF", systemImage: "doc.badge.plus")
+                        .font(.system(size: 14))
+                }
+                .disabled(isUploadingTicket)
+                if isUploadingTicket {
+                    HStack {
+                        ProgressView().tint(.revOrange)
+                        Text("Envoi en cours…")
+                            .font(.system(size: 12))
+                            .foregroundColor(.revTextSecondary)
+                    }
+                }
+            }
+        } else {
+            // Mode création : pas encore d'id → upload impossible.
+            Section("Couverture & billets") {
+                Text("Enregistrez l'étape pour ajouter une image de couverture et des billets.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.revTextSecondary)
+            }
+        }
+    }
+
     // MARK: - Logic
 
     private var isCreate: Bool {
@@ -212,8 +347,20 @@ struct EtapeFormSheet: View {
         }
     }
 
+    /// Filtre de recherche de lieu selon le mode de transport de l'étape :
+    /// vol (aller/retour) → aéroports uniquement ; train → gares uniquement ;
+    /// sinon recherche générale. Aligné sur les valeurs `type` du backend.
+    private var placeFilter: String? {
+        switch type {
+        case "vol_aller", "vol_retour": return "airport"
+        case "train":                   return "railway"
+        default:                        return nil
+        }
+    }
+
     private func preload() {
         guard case .edit(_, let etape) = mode else { return }
+        currentEtape = etape
         type = etape.type
         titre = etape.titre
         lieu = etape.lieu ?? ""
@@ -286,14 +433,133 @@ struct EtapeFormSheet: View {
 
         do {
             let etape: VoyageEtape
-            switch mode {
-            case .create(let id):
-                etape = try await VoyageService.shared.createEtape(voyageId: id, payload: payload)
-            case .edit(let id, let existing):
-                etape = try await VoyageService.shared.updateEtape(voyageId: id, etapeId: existing.id, payload: payload)
+            // Si l'étape a déjà été créée lors d'un premier enregistrement dans
+            // cette même feuille (cas création → ajout de pièces jointes), on
+            // bascule sur une mise à jour de l'étape fraîchement créée.
+            if let existing = currentEtape {
+                etape = try await VoyageService.shared.updateEtape(
+                    voyageId: voyageId, etapeId: existing.id, payload: payload
+                )
+                currentEtape = etape
+                onSaved(etape)
+                dismiss()
+            } else {
+                switch mode {
+                case .create(let id):
+                    etape = try await VoyageService.shared.createEtape(voyageId: id, payload: payload)
+                    // On garde la feuille ouverte : l'étape a maintenant un id,
+                    // ce qui débloque l'upload couverture/billets. On notifie le
+                    // parent pour qu'il rafraîchisse sa liste sans fermer ici.
+                    currentEtape = etape
+                    originalContenuHtml = etape.contenu_html
+                    justCreated = true
+                    onSaved(etape)
+                case .edit(let id, let existing):
+                    etape = try await VoyageService.shared.updateEtape(
+                        voyageId: id, etapeId: existing.id, payload: payload
+                    )
+                    currentEtape = etape
+                    onSaved(etape)
+                    dismiss()
+                }
             }
-            onSaved(etape)
-            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Couverture & billets : handlers
+
+    private func handleCoverPick(_ item: PhotosPickerItem) async {
+        defer { coverItem = nil }
+        guard let etape = currentEtape else { return }
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            errorMessage = "Image illisible"
+            return
+        }
+        let uti = item.supportedContentTypes.first
+        let ext = uti?.preferredFilenameExtension ?? "jpg"
+        let mime = uti?.preferredMIMEType ?? "image/jpeg"
+        isUploadingCover = true
+        defer { isUploadingCover = false }
+        do {
+            let updated = try await VoyageService.shared.uploadEtapeCover(
+                voyageId: voyageId, etapeId: etape.id,
+                imageData: data, fileName: "cover.\(ext)", mimeType: mime
+            )
+            currentEtape = updated
+            onSaved(updated)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleTicketPicks(_ items: [PhotosPickerItem]) async {
+        defer { ticketItems = [] }
+        guard let etape = currentEtape else { return }
+        isUploadingTicket = true
+        defer { isUploadingTicket = false }
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let uti = item.supportedContentTypes.first
+            let ext = uti?.preferredFilenameExtension ?? "jpg"
+            let mime = uti?.preferredMIMEType ?? "image/jpeg"
+            do {
+                let updated = try await VoyageService.shared.uploadEtapeTicket(
+                    voyageId: voyageId, etapeId: etape.id,
+                    fileData: data, fileName: "billet.\(ext)", mimeType: mime
+                )
+                currentEtape = updated
+                onSaved(updated)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func handleTicketDocs(_ result: Result<[URL], Error>) {
+        guard let etape = currentEtape else { return }
+        switch result {
+        case .success(let urls):
+            Task {
+                isUploadingTicket = true
+                defer { isUploadingTicket = false }
+                for url in urls {
+                    let didStart = url.startAccessingSecurityScopedResource()
+                    let data = try? Data(contentsOf: url)
+                    if didStart { url.stopAccessingSecurityScopedResource() }
+                    guard let data else {
+                        errorMessage = "Impossible de lire le fichier"
+                        continue
+                    }
+                    do {
+                        let updated = try await VoyageService.shared.uploadEtapeTicket(
+                            voyageId: voyageId, etapeId: etape.id,
+                            fileData: data, fileName: url.lastPathComponent,
+                            mimeType: "application/pdf"
+                        )
+                        currentEtape = updated
+                        onSaved(updated)
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                }
+            }
+        case .failure(let err):
+            errorMessage = err.localizedDescription
+        }
+    }
+
+    private func deleteTicket(_ ticket: EtapeTicket) async {
+        guard let etape = currentEtape else { return }
+        deletingTicketURL = ticket.url
+        defer { deletingTicketURL = nil }
+        do {
+            let updated = try await VoyageService.shared.deleteEtapeTicket(
+                voyageId: voyageId, etapeId: etape.id, ticketUrl: ticket.url
+            )
+            currentEtape = updated
+            onSaved(updated)
         } catch {
             errorMessage = error.localizedDescription
         }

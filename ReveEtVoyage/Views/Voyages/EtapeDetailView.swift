@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import QuickLook
+import PDFKit
 import Photos
 
 /// Detail full-screen for a single voyage étape.
@@ -551,8 +552,25 @@ struct EtapeDetailView: View {
         }
     }
 
-    /// Ligne d'un billet : icône selon le type, tap pour ouvrir/prévisualiser.
+    /// Billet : ligne cliquable + aperçu inline (image ou 1ʳᵉ page PDF) en dessous.
     private func ticketRow(_ ticket: EtapeTicket) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ticketRowHeader(ticket)
+
+            if let url = attachmentURL(ticket.url) {
+                if ticket.is_image {
+                    inlineImagePreview(url)
+                } else if ticket.is_pdf {
+                    PDFThumbnailInline(url: url)
+                        .onTapGesture { openDocument(url) }
+                }
+                // Autre type : aucun aperçu, la ligne cliquable suffit.
+            }
+        }
+    }
+
+    /// Ligne d'un billet : icône selon le type, tap pour ouvrir/prévisualiser.
+    private func ticketRowHeader(_ ticket: EtapeTicket) -> some View {
         Button {
             guard let url = attachmentURL(ticket.url) else { return }
             if ticket.is_image {
@@ -595,6 +613,48 @@ struct EtapeDetailView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// Aperçu image inline d'un billet (sous la ligne). Tap → plein écran.
+    private func inlineImagePreview(_ url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            fullScreenImageURL = url
+                        }
+                    }
+            case .failure:
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revCardBackground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 220)
+                    Image(systemName: "photo")
+                        .font(.system(size: 28))
+                        .foregroundColor(.revTextSecondary)
+                }
+            default:
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revCardBackground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 220)
+                    ProgressView().tint(.revOrange)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 220)
     }
 
     /// Icône d'un billet : pdf → `doc.fill`, image → `photo`, sinon `doc.fill`.
@@ -923,5 +983,111 @@ struct HTMLText: View {
             .replacingOccurrences(of: "&nbsp;", with: " ")
             .replacingOccurrences(of: "&amp;", with: "&")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - PDFThumbnailInline (aperçu de la 1ʳᵉ page d'un PDF distant)
+
+/// Télécharge un PDF distant, rend sa 1ʳᵉ page en image et l'affiche inline.
+/// États gérés : chargement (ProgressView), succès (thumbnail), échec (icône doc).
+/// Le tap est géré par la vue parente (ouverture QuickLook).
+private struct PDFThumbnailInline: View {
+    let url: URL
+
+    @State private var image: UIImage? = nil
+    @State private var didFail: Bool = false
+
+    private let maxHeight: CGFloat = 260
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: maxHeight)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "doc.richtext.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(Circle().fill(Color.revBrown.opacity(0.75)))
+                            .padding(8)
+                    }
+            } else if didFail {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revCardBackground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: maxHeight)
+                    Image(systemName: "doc.richtext.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.revTextSecondary)
+                }
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.revCardBackground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: maxHeight)
+                    ProgressView().tint(.revOrange)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: maxHeight)
+        .task(id: url) {
+            await loadThumbnail()
+        }
+    }
+
+    /// Télécharge le PDF puis rend sa 1ʳᵉ page hors du main thread.
+    private func loadThumbnail() async {
+        // Évite de retélécharger si déjà chargé (ré-exécution de .task).
+        if image != nil { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let rendered = Self.renderFirstPage(from: data, maxHeight: maxHeight)
+            await MainActor.run {
+                if let rendered {
+                    self.image = rendered
+                } else {
+                    self.didFail = true
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.didFail = true
+            }
+        }
+    }
+
+    /// Rend la 1ʳᵉ page d'un PDF en `UIImage`. `nil` si le document est invalide.
+    private static func renderFirstPage(from data: Data, maxHeight: CGFloat) -> UIImage? {
+        guard let document = PDFDocument(data: data),
+              let page = document.page(at: 0) else { return nil }
+
+        let pageRect = page.bounds(for: .mediaBox)
+        guard pageRect.width > 0, pageRect.height > 0 else { return nil }
+
+        // On rend à une échelle correspondant à la hauteur d'affichage (Retina x2).
+        let scale = (maxHeight * 2) / pageRect.height
+        let targetSize = CGSize(width: pageRect.width * scale,
+                                height: pageRect.height * scale)
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { ctx in
+            UIColor.white.set()
+            ctx.fill(CGRect(origin: .zero, size: targetSize))
+
+            // PDFKit dessine dans un repère origine bas-gauche : on retourne l'axe Y.
+            ctx.cgContext.translateBy(x: 0, y: targetSize.height)
+            ctx.cgContext.scaleBy(x: scale, y: -scale)
+            page.draw(with: .mediaBox, to: ctx.cgContext)
+        }
     }
 }

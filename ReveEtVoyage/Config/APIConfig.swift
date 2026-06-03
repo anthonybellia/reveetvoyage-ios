@@ -26,6 +26,14 @@ enum APIConfig {
         static func etape(voyageId: Int, etapeId: Int) -> String {
             "/voyages/\(voyageId)/etapes/\(etapeId)"
         }
+        /// Upload / remplacement de l'image de couverture d'une étape (multipart).
+        static func etapeCover(voyageId: Int, etapeId: Int) -> String {
+            "/voyages/\(voyageId)/etapes/\(etapeId)/cover"
+        }
+        /// Ajout (POST multipart) ou suppression (DELETE) d'un billet d'étape.
+        static func etapeTickets(voyageId: Int, etapeId: Int) -> String {
+            "/voyages/\(voyageId)/etapes/\(etapeId)/tickets"
+        }
         // Photon places autocomplete (public, under /api prefix)
         static let photon = "/photon"
 

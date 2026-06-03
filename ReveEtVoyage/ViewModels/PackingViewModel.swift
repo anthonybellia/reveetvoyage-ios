@@ -6,6 +6,7 @@ final class PackingViewModel: ObservableObject {
     @Published var items: [VoyagePackingItem] = []
     @Published var categories: [PackingCategory] = []
     @Published var isLoading: Bool = false
+    @Published var isGenerating: Bool = false
     @Published var errorMessage: String?
 
     private let service = PackingService.shared
@@ -151,6 +152,24 @@ final class PackingViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    // MARK: - Generate classic list
+
+    /// Génère la "liste classique" via l'API (anti-doublon côté serveur) puis
+    /// remplace la liste locale par la version renvoyée.
+    func generateClassic() async {
+        guard !isGenerating else { return }
+        isGenerating = true
+        errorMessage = nil
+        defer { isGenerating = false }
+
+        do {
+            let generated = try await service.generateVoyagePacking(voyageId: voyageId)
+            items = generated
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

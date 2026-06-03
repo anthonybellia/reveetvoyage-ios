@@ -69,7 +69,7 @@ struct VoyageEtape: Codable, Identifiable {
 
     var hasCoordinates: Bool { latitude != nil && longitude != nil }
     var hasAttachments: Bool {
-        fichier != nil || image != nil || !(images ?? []).isEmpty
+        fichier != nil || image != nil || !(images ?? []).isEmpty || hasTickets
     }
     /// Vrai si l'étape comporte au moins un billet/ticket attaché.
     var hasTickets: Bool { !(tickets ?? []).isEmpty }

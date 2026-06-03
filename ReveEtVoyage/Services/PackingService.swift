@@ -79,6 +79,15 @@ final class PackingService {
         return response.data ?? []
     }
 
+    /// Génère la "liste classique" côté serveur (anti-doublon) et renvoie la liste à jour.
+    func generateVoyagePacking(voyageId: Int) async throws -> [VoyagePackingItem] {
+        let response: APIResponse<[VoyagePackingItem]> = try await apiClient.post(
+            path: "/voyages/\(voyageId)/packing/generate",
+            requiresAuth: true
+        )
+        return response.data ?? []
+    }
+
     func addVoyageItem(voyageId: Int, _ request: VoyagePackingItemCreateRequest) async throws -> VoyagePackingItem {
         let response: APIResponse<VoyagePackingItem> = try await apiClient.post(
             path: "/voyages/\(voyageId)/packing",

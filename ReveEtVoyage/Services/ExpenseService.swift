@@ -93,11 +93,16 @@ final class ExpenseService {
 
     // MARK: - Place autocomplete
 
-    func searchPlaces(query: String, lat: Double? = nil, lng: Double? = nil) async throws -> [Place] {
+    /// - Parameter filter: catégorie optionnelle (`airport` ou `railway`) pour
+    ///   restreindre la recherche aux aéroports / gares (formulaire d'étape iOS).
+    func searchPlaces(query: String, lat: Double? = nil, lng: Double? = nil, filter: String? = nil) async throws -> [Place] {
         var params: [String: String] = ["q": query]
         if let lat = lat, let lng = lng {
             params["lat"] = String(lat)
             params["lng"] = String(lng)
+        }
+        if let filter = filter, !filter.isEmpty {
+            params["filter"] = filter
         }
         let response: APIResponse<[Place]> = try await apiClient.get(
             path: "/places/search",

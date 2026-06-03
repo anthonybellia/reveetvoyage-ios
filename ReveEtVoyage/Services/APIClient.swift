@@ -180,6 +180,101 @@ final class APIClient {
         try await request(method: "DELETE", path: path, requiresAuth: requiresAuth)
     }
 
+    /// DELETE avec corps JSON (certains endpoints attendent un body, ex. suppression
+    /// d'un billet d'étape identifié par son `url`/`path`/`index`).
+    func delete<T: Decodable>(
+        path: String,
+        body: (any Encodable)?,
+        requiresAuth: Bool = false
+    ) async throws -> T {
+        try await request(method: "DELETE", path: path, body: body, requiresAuth: requiresAuth)
+    }
+
+    // MARK: - Multipart upload
+
+    /// Envoie un fichier en `multipart/form-data` sur `path` et décode la réponse.
+    /// Réutilise l'auth Bearer et le décodeur de dates partagés. Utilisé pour
+    /// l'upload de la couverture / des billets d'étape.
+    /// - Parameters:
+    ///   - fieldName: nom du champ de formulaire (ex. `cover`, `ticket`).
+    ///   - fileData: contenu binaire du fichier.
+    ///   - fileName: nom de fichier (avec extension correcte, ex. `billet.pdf`).
+    ///   - mimeType: type MIME (ex. `application/pdf`, `image/jpeg`).
+    func uploadMultipart<T: Decodable>(
+        method: String = "POST",
+        path: String,
+        fieldName: String,
+        fileData: Data,
+        fileName: String,
+        mimeType: String,
+        requiresAuth: Bool = true
+    ) async throws -> T {
+        guard var components = URLComponents(url: APIConfig.baseURL, resolvingAgainstBaseURL: false) else {
+            throw NetworkError.invalidURL
+        }
+        components.path += path
+        guard let url = components.url else {
+            throw NetworkError.invalidURL
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("ios", forHTTPHeaderField: "X-Client-Platform")
+        if let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            request.setValue("ReveEtVoyage-iOS/\(appVersion)", forHTTPHeaderField: "User-Agent")
+        }
+        if requiresAuth {
+            guard let token = self.token else { throw NetworkError.unauthorized }
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        var body = Data()
+        let dd = "--\(boundary)\r\n"
+        body.append(dd.data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw NetworkError.requestFailed(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.requestFailed(NSError(domain: "InvalidResponse", code: -1))
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            do {
+                return try decoder.decode(T.self, from: data)
+            } catch {
+                throw NetworkError.decodingFailed(error)
+            }
+        case 401:
+            clearToken()
+            throw NetworkError.unauthorized
+        case 422:
+            if let apiError = try? decoder.decode(APIError.self, from: data),
+               let errors = apiError.errors {
+                throw NetworkError.validationError(errors)
+            }
+            throw NetworkError.serverError(statusCode: 422, message: "Validation error")
+        default:
+            let apiError = try? decoder.decode(APIError.self, from: data)
+            throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: apiError?.message)
+        }
+    }
+
     func postVoid(
         path: String,
         body: (any Encodable)? = nil,

@@ -145,6 +145,73 @@ final class VoyageService {
             requiresAuth: true
         )
     }
+
+    // MARK: - Étape : couverture & billets (multipart)
+
+    /// Upload / remplace l'image de couverture de l'étape. Renvoie l'étape mise à jour.
+    func uploadEtapeCover(
+        voyageId: Int,
+        etapeId: Int,
+        imageData: Data,
+        fileName: String = "cover.jpg",
+        mimeType: String = "image/jpeg"
+    ) async throws -> VoyageEtape {
+        let response: APIResponse<VoyageEtape> = try await apiClient.uploadMultipart(
+            method: "POST",
+            path: APIConfig.Endpoints.etapeCover(voyageId: voyageId, etapeId: etapeId),
+            fieldName: "cover",
+            fileData: imageData,
+            fileName: fileName,
+            mimeType: mimeType,
+            requiresAuth: true
+        )
+        guard let etape = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Upload couverture échoué")
+        }
+        return etape
+    }
+
+    /// Ajoute un billet (PDF ou image) à l'étape. Renvoie l'étape mise à jour.
+    func uploadEtapeTicket(
+        voyageId: Int,
+        etapeId: Int,
+        fileData: Data,
+        fileName: String,
+        mimeType: String
+    ) async throws -> VoyageEtape {
+        let response: APIResponse<VoyageEtape> = try await apiClient.uploadMultipart(
+            method: "POST",
+            path: APIConfig.Endpoints.etapeTickets(voyageId: voyageId, etapeId: etapeId),
+            fieldName: "ticket",
+            fileData: fileData,
+            fileName: fileName,
+            mimeType: mimeType,
+            requiresAuth: true
+        )
+        guard let etape = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Upload billet échoué")
+        }
+        return etape
+    }
+
+    /// Supprime un billet de l'étape, identifié par son `url` (telle que renvoyée
+    /// par l'API). Renvoie l'étape mise à jour.
+    func deleteEtapeTicket(voyageId: Int, etapeId: Int, ticketUrl: String) async throws -> VoyageEtape {
+        let response: APIResponse<VoyageEtape> = try await apiClient.delete(
+            path: APIConfig.Endpoints.etapeTickets(voyageId: voyageId, etapeId: etapeId),
+            body: DeleteTicketPayload(url: ticketUrl),
+            requiresAuth: true
+        )
+        guard let etape = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Suppression billet échouée")
+        }
+        return etape
+    }
+}
+
+/// Corps de requête pour la suppression d'un billet d'étape.
+struct DeleteTicketPayload: Encodable {
+    let url: String
 }
 
 struct InviteMemberPayload: Encodable {

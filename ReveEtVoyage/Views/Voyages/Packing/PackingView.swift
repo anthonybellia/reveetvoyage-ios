@@ -21,6 +21,9 @@ struct PackingView: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             progressCard
+                            if !viewModel.items.isEmpty {
+                                generateButton
+                            }
                             itemsList
                         }
                         .padding(.horizontal, 18)
@@ -96,16 +99,19 @@ struct PackingView: View {
         VStack(alignment: .leading, spacing: 16) {
             if viewModel.groupedItems.isEmpty {
                 GlassCard {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 12) {
                         Image(systemName: "checklist")
                             .font(.system(size: 32))
                             .foregroundColor(.revTextSecondary)
                         Text("Aucun article dans ta liste.")
                             .font(.system(size: 14))
                             .foregroundColor(.revTextSecondary)
-                        Text("Appuie sur + pour ajouter le premier.")
+                        Text("Génère une liste classique pour démarrer, ou appuie sur + pour ajouter le premier.")
                             .font(.system(size: 12))
                             .foregroundColor(.revTextSecondary)
+                            .multilineTextAlignment(.center)
+                        generateButton
+                            .padding(.top, 4)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -166,6 +172,19 @@ struct PackingView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Generate classic list button
+
+    private var generateButton: some View {
+        BrandButton(
+            title: "Générer une liste classique",
+            systemImage: "wand.and.stars",
+            isLoading: viewModel.isGenerating,
+            style: .secondary
+        ) {
+            Task { await viewModel.generateClassic() }
         }
     }
 
