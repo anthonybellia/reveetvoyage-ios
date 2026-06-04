@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import QuickLook
+import CoreLocation
 
 struct EtapeNavValue: Hashable {
     let etape: VoyageEtape
@@ -41,6 +42,12 @@ struct VoyageDetailView: View {
     @State private var recapImageURL: URL? = nil        // billet image plein écran
     @State private var recapQuickLookURL: URL? = nil    // billet PDF/doc téléchargé
     @State private var showRecapQuickLook: Bool = false
+
+    // Localisation : invite d'arrivée à une étape (Feature 2, géoloc).
+    @StateObject private var locationService = LocationService.shared
+    @State private var arrivalEtape: VoyageEtape? = nil
+    @State private var arrivalHandledIds: Set<Int> = []
+
     @Environment(\.dismiss) private var dismissVoyageDetail
     private let newTripDraft = "Bonjour ! Je viens de rentrer et j'aimerais préparer mon prochain voyage. Voici mes premières idées :\n\n• Destination envisagée : \n• Dates souhaitées : \n• Type de séjour : \n• Budget approximatif : \n\nMerci !"
 
@@ -268,6 +275,52 @@ struct VoyageDetailView: View {
             }
         }
         .task { await viewModel.load() }
+        .onAppear { LocationService.shared.startIfPermitted() }
+        .onChange(of: locationService.lastKnownLocation) { _ in checkArrival() }
+        .onChange(of: viewModel.etapes.count) { _ in checkArrival() }
+        .confirmationDialog(
+            arrivalEtape.map { "Vous êtes arrivé à \($0.titre) ?" } ?? "",
+            isPresented: Binding(
+                get: { arrivalEtape != nil },
+                set: { if !$0 { arrivalEtape = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let e = arrivalEtape {
+                Button("Oui, marquer terminée") {
+                    Task { await viewModel.toggleEtape(e) }
+                    arrivalHandledIds.insert(e.id)
+                    arrivalEtape = nil
+                }
+                Button("Pas encore", role: .cancel) {
+                    arrivalHandledIds.insert(e.id)
+                    arrivalEtape = nil
+                }
+            }
+        } message: {
+            if let e = arrivalEtape {
+                Text(e.lieu.map { "Vous semblez être à proximité de \($0)." }
+                    ?? "Vous semblez être à proximité de cette étape.")
+            }
+        }
+    }
+
+    /// Détecte l'arrivée à proximité (~200 m) d'une étape non terminée et propose
+    /// de la cocher. Une étape déjà proposée n'est pas re-proposée dans la session.
+    private func checkArrival() {
+        guard arrivalEtape == nil else { return }
+        guard let here = locationService.lastKnownLocation else { return }
+        let radius: CLLocationDistance = 200
+        var best: (etape: VoyageEtape, dist: CLLocationDistance)?
+        for e in viewModel.etapes {
+            guard !e.is_completed, !arrivalHandledIds.contains(e.id),
+                  let lat = e.latitude, let lng = e.longitude else { continue }
+            let d = here.distance(from: CLLocation(latitude: lat, longitude: lng))
+            if d <= radius, best == nil || d < best!.dist {
+                best = (e, d)
+            }
+        }
+        if let b = best { arrivalEtape = b.etape }
     }
 
     /// Use the live version from viewModel (in case it was just toggled)
