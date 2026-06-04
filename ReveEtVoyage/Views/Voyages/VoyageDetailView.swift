@@ -442,29 +442,44 @@ struct VoyageDetailView: View {
                                 openVoyageTicket(ref.ticket)
                             } label: {
                                 HStack(spacing: 14) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.revOrange.opacity(0.12))
-                                            .frame(width: 44, height: 44)
-                                        Image(systemName: ref.ticket.is_image ? "photo" : "doc.fill")
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(.revOrange)
+                                    // Visuel : photo de couverture de l'étape si
+                                    // disponible, sinon icône du type d'étape.
+                                    if let cover = ref.etape.coverImage,
+                                       let coverURL = etapeCoverURL(cover) {
+                                        AsyncImage(url: coverURL) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                            default:
+                                                ZStack {
+                                                    Color.revOrange.opacity(0.12)
+                                                    Image(systemName: EtapeTypeInfo.resolve(ref.etape.type).icon)
+                                                        .font(.system(size: 20, weight: .semibold))
+                                                        .foregroundColor(.revOrange)
+                                                }
+                                            }
+                                        }
+                                        .frame(width: 44, height: 44)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    } else {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color.revOrange.opacity(0.12))
+                                                .frame(width: 44, height: 44)
+                                            Image(systemName: EtapeTypeInfo.resolve(ref.etape.type).icon)
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundColor(.revOrange)
+                                        }
                                     }
 
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        // Titre/description de l'étape parente.
-                                        Text(ref.etape.titre)
-                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                            .foregroundColor(.revText)
-                                            .lineLimit(1)
-                                        let subtitle = ref.ticket.name.isEmpty
-                                            ? ref.ticket.ext.uppercased()
-                                            : ref.ticket.name
-                                        Text(subtitle)
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(.revTextSecondary)
-                                            .lineLimit(1)
-                                    }
+                                    // Nom de l'étape parente uniquement (plus de
+                                    // nom de fichier / token affiché).
+                                    Text(ref.etape.titre)
+                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.revText)
+                                        .lineLimit(1)
 
                                     Spacer()
 
