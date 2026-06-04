@@ -20,6 +20,11 @@ enum APIConfig {
         static func toggleEtape(voyageId: Int, etapeId: Int) -> String {
             "/voyages/\(voyageId)/etapes/\(etapeId)/toggle"
         }
+        /// Idempotent : fixe l'état terminé/en attente d'une étape.
+        /// Utilisé par l'outbox hors-ligne (rejouable sans risque, last-write-wins).
+        static func setEtapeCompletion(voyageId: Int, etapeId: Int) -> String {
+            "/voyages/\(voyageId)/etapes/\(etapeId)/completion"
+        }
         static func etapes(voyageId: Int) -> String {
             "/voyages/\(voyageId)/etapes"
         }

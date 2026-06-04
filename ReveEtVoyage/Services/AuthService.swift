@@ -173,8 +173,13 @@ final class AuthService: ObservableObject {
             isAuthenticated = true
             PreviewState.isRealAdmin = (me.user.role == "admin")
             keychain.saveUserId(me.user.id)
-        } catch {
+        } catch NetworkError.unauthorized {
+            // Token réellement rejeté par le serveur (401) : on déconnecte.
             clearLocalSession()
+        } catch {
+            // Réseau indisponible / serveur KO : on garde la session pour le mode
+            // hors-ligne (avion). Surtout ne pas effacer le token du Keychain ici,
+            // sinon l'ouverture sans réseau déconnecte l'utilisateur.
         }
     }
 
@@ -273,6 +278,11 @@ final class AuthService: ObservableObject {
     private func clearLocalSession() {
         apiClient.clearToken()
         keychain.deleteUserId()
+        // Purge le cache hors-ligne : sur un appareil partagé, le compte suivant
+        // ne doit pas voir les voyages/données mis en cache par le précédent.
+        OfflineCache.shared.clearAll()
+        // Idem pour les écritures en file : ne pas les rejouer sur un autre compte.
+        OfflineOutbox.shared.clearAll()
         currentUser = nil
         isAuthenticated = false
         errorMessage = nil

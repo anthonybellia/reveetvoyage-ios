@@ -9,9 +9,10 @@ struct ExpenseParticipant: Codable, Identifiable, Hashable {
     let user_id: Int?
     let display_name: String
     let is_guest: Bool
+    let avatar_url: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, voyage_id, user_id, display_name, is_guest
+        case id, voyage_id, user_id, display_name, is_guest, avatar_url
     }
 }
 
@@ -29,6 +30,7 @@ struct ExpenseSplit: Codable, Hashable {
 struct ExpensePaidBy: Codable, Hashable {
     let id: Int
     let display_name: String
+    let avatar_url: String?
 }
 
 struct Expense: Codable, Identifiable, Hashable {

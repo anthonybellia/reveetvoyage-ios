@@ -187,9 +187,10 @@ struct VoyageMember: Codable, Identifiable {
     let email: String
     let role: String
     let is_owner: Bool
+    let avatar_url: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, email, role, is_owner
+        case id, name, email, role, is_owner, avatar_url
     }
 }
 

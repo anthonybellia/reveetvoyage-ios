@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 final class APIClient {
     static let shared = APIClient()
@@ -11,7 +12,10 @@ final class APIClient {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = APIConfig.requestTimeout
         config.timeoutIntervalForResource = APIConfig.resourceTimeout
-        config.waitsForConnectivity = true
+        // Hors-ligne : échouer immédiatement plutôt que d'attendre la connectivité
+        // (sinon login/GET « bloquent » jusqu'à 60s). Sur un GET, l'échec déclenche
+        // le repli sur le cache disque ; sur le login, une erreur claire est affichée.
+        config.waitsForConnectivity = false
         return URLSession(configuration: config)
     }()
 
@@ -129,6 +133,14 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            // Panne réseau : pour un GET on tente le dernier cache hors-ligne connu.
+            if method == "GET", let cached = OfflineCache.shared.load(for: url.absoluteString) {
+                do {
+                    return try decoder.decode(T.self, from: cached)
+                } catch {
+                    throw NetworkError.requestFailed(error)
+                }
+            }
             throw NetworkError.requestFailed(error)
         }
 
@@ -138,6 +150,10 @@ final class APIClient {
 
         switch httpResponse.statusCode {
         case 200...299:
+            // Mémorise la dernière réponse GET pour la relire hors-ligne (lecture seule).
+            if method == "GET" {
+                OfflineCache.shared.store(data, for: url.absoluteString)
+            }
             do {
                 return try decoder.decode(T.self, from: data)
             } catch {
@@ -301,5 +317,52 @@ final class APIClient {
         requiresAuth: Bool = false
     ) async throws {
         let _: VoidResponse = try await request(method: "DELETE", path: path, requiresAuth: requiresAuth)
+    }
+}
+
+// MARK: - Offline cache (lecture seule)
+
+/// Cache disque minimal des réponses GET pour le mode hors-ligne.
+/// On mémorise le JSON brut de chaque GET réussi, indexé par l'URL complète
+/// (chemin + query), et on le ressert quand le réseau est indisponible.
+/// Lecture seule : aucune mutation n'est mise en file ici.
+final class OfflineCache {
+    static let shared = OfflineCache()
+
+    private let dir: URL
+    private let fm = FileManager.default
+
+    private init() {
+        let base = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        dir = base.appendingPathComponent("api-offline-cache", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+    }
+
+    private func fileURL(for key: String) -> URL {
+        let digest = SHA256.hash(data: Data(key.utf8))
+        let name = digest.map { String(format: "%02x", $0) }.joined()
+        return dir.appendingPathComponent(name)
+    }
+
+    func store(_ data: Data, for key: String) {
+        try? data.write(to: fileURL(for: key), options: .atomic)
+    }
+
+    func load(for key: String) -> Data? {
+        try? Data(contentsOf: fileURL(for: key))
+    }
+
+    /// Date de dernière mise à jour du cache pour cette clé
+    /// (utile pour afficher « données du JJ/MM » en mode hors-ligne).
+    func lastUpdated(for key: String) -> Date? {
+        let path = fileURL(for: key).path
+        return (try? fm.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+    }
+
+    /// Purge totale du cache (à appeler à la déconnexion pour ne pas laisser
+    /// les données d'un compte visibles à un autre).
+    func clearAll() {
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
     }
 }

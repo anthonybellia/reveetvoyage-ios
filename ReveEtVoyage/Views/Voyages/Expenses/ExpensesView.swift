@@ -357,13 +357,17 @@ private struct ExpenseRow: View {
                         .foregroundColor(.revText)
                         .lineLimit(1)
 
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 10))
-                        Text("Payé par ").foregroundColor(.revTextSecondary)
-                        + Text(paidByName).foregroundColor(.revBrown).bold()
+                    HStack(spacing: 5) {
+                        AvatarView(
+                            firstName: paidByName.split(separator: " ").first.map(String.init) ?? paidByName,
+                            lastName: paidByName.split(separator: " ").dropFirst().first.map(String.init) ?? "",
+                            avatarPath: expense.paid_by?.avatar_url,
+                            size: 18
+                        )
+                        (Text("Payé par ").foregroundColor(.revTextSecondary)
+                            + Text(paidByName).foregroundColor(.revBrown).bold())
+                            .font(.system(size: 11))
                     }
-                    .font(.system(size: 11))
                     .foregroundColor(.revTextSecondary)
 
                     if let loc = expense.location_name, !loc.isEmpty {

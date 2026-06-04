@@ -45,6 +45,22 @@ final class VoyageService {
         return etape
     }
 
+    /// Fixe explicitement l'état terminé d'une étape (idempotent).
+    /// Préféré au toggle pour l'optimiste + la file hors-ligne : rejouable
+    /// sans risque même si l'état serveur a changé entre-temps.
+    @discardableResult
+    func setEtapeCompletion(voyageId: Int, etapeId: Int, isCompleted: Bool) async throws -> VoyageEtape {
+        let response: APIResponse<VoyageEtape> = try await apiClient.put(
+            path: APIConfig.Endpoints.setEtapeCompletion(voyageId: voyageId, etapeId: etapeId),
+            body: ["is_completed": isCompleted],
+            requiresAuth: true
+        )
+        guard let etape = response.data else {
+            throw NetworkError.serverError(statusCode: 500, message: "Mise à jour étape échouée")
+        }
+        return etape
+    }
+
     // MARK: - Membres / collaboration voyage
 
     /// Récupère les membres (propriétaire + collaborateurs) et les invitations

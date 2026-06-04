@@ -119,15 +119,12 @@ private struct ParticipantRow: View {
     var body: some View {
         GlassCard(padding: 14) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [.revYellow, .revOrange, .revRed],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 40, height: 40)
-                    Text(initials(participant.display_name))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                }
+                AvatarView(
+                    firstName: participant.display_name.split(separator: " ").first.map(String.init) ?? participant.display_name,
+                    lastName: participant.display_name.split(separator: " ").dropFirst().first.map(String.init) ?? "",
+                    avatarPath: participant.avatar_url,
+                    size: 40
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(participant.display_name)

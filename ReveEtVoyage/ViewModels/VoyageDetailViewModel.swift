@@ -42,22 +42,33 @@ final class VoyageDetailViewModel: ObservableObject {
         togglingEtapeIds.insert(etape.id)
         defer { togglingEtapeIds.remove(etape.id) }
 
+        let desired = !etape.is_completed
+
         // Optimistic UI: flip locally first
         if let idx = etapes.firstIndex(where: { $0.id == etape.id }) {
             etapes[idx] = etape.toggled()
         }
 
         do {
-            let updated = try await voyageService.toggleEtape(voyageId: voyageId, etapeId: etape.id)
+            // Endpoint idempotent « set » : rejouable sans risque par l'outbox.
+            let updated = try await voyageService.setEtapeCompletion(
+                voyageId: voyageId, etapeId: etape.id, isCompleted: desired)
             if let idx = etapes.firstIndex(where: { $0.id == etape.id }) {
                 etapes[idx] = updated
             }
-        } catch {
-            // Revert on failure
+        } catch NetworkError.unauthorized {
+            // Session réellement invalide : on annule l'optimiste.
             if let idx = etapes.firstIndex(where: { $0.id == etape.id }) {
                 etapes[idx] = etape
             }
-            errorMessage = error.localizedDescription
+            errorMessage = NetworkError.unauthorized.errorDescription
+        } catch {
+            // Hors-ligne / serveur injoignable : on GARDE l'état optimiste et on
+            // met l'écriture en file pour re-synchroniser au retour du réseau.
+            OfflineOutbox.shared.enqueue(
+                OfflineWrite(kind: .etapeCompletion, voyageId: voyageId,
+                             entityId: etape.id, value: desired, updatedAt: Date())
+            )
         }
     }
 

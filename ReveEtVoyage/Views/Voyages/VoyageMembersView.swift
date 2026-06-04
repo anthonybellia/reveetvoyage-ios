@@ -266,6 +266,7 @@ struct VoyageMembersView: View {
             AvatarView(
                 firstName: firstNameOf(member.name),
                 lastName: lastNameOf(member.name),
+                avatarPath: member.avatar_url,
                 size: 40
             )
 
