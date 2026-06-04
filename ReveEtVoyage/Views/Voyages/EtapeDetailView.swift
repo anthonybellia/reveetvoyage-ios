@@ -601,6 +601,16 @@ struct EtapeDetailView: View {
                     Text(ticket.ext.uppercased())
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.revTextSecondary)
+                    if let pax = ticket.participant_name, !pax.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text(pax)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(.revOrange)
+                    }
                 }
 
                 Spacer()

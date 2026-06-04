@@ -474,12 +474,24 @@ struct VoyageDetailView: View {
                                         }
                                     }
 
-                                    // Nom de l'étape parente uniquement (plus de
-                                    // nom de fichier / token affiché).
-                                    Text(ref.etape.titre)
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                        .foregroundColor(.revText)
-                                        .lineLimit(1)
+                                    // Nom de l'étape parente + passager attribué
+                                    // (plus de nom de fichier / token affiché).
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(ref.etape.titre)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.revText)
+                                            .lineLimit(1)
+                                        if let pax = ref.ticket.participant_name, !pax.isEmpty {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "person.fill")
+                                                    .font(.system(size: 9, weight: .semibold))
+                                                Text(pax)
+                                                    .font(.system(size: 11, weight: .medium))
+                                                    .lineLimit(1)
+                                            }
+                                            .foregroundColor(.revOrange)
+                                        }
+                                    }
 
                                     Spacer()
 

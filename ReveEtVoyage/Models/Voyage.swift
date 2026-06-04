@@ -129,12 +129,15 @@ struct EtapeTicket: Codable, Identifiable {
     let ext: String
     let is_pdf: Bool
     let is_image: Bool
+    /// Passager auquel le billet est attribué (VoyageParticipant), si défini.
+    let participant_id: Int?
+    let participant_name: String?
 
     /// Identifiant stable pour les `ForEach` (l'URL est unique par billet).
     var id: String { url }
 
     enum CodingKeys: String, CodingKey {
-        case url, name, ext, is_pdf, is_image
+        case url, name, ext, is_pdf, is_image, participant_id, participant_name
     }
 }
 
