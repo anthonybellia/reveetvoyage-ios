@@ -178,7 +178,7 @@ private struct TemplateItemRow: View {
 
                 Image(systemName: "pencil")
                     .font(.system(size: 13))
-                    .foregroundColor(.revTextSecondary.opacity(0.5))
+                    .foregroundColor(.revTextSecondary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)

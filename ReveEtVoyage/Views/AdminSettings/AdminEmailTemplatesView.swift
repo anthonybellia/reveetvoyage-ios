@@ -52,7 +52,7 @@ struct AdminEmailTemplatesView: View {
                                         Text(s).font(.system(size: 11)).foregroundColor(.revTextSecondary).lineLimit(1)
                                     }
                                     Text(t.key).font(.system(size: 10, design: .monospaced))
-                                        .foregroundColor(.revTextSecondary.opacity(0.7))
+                                        .foregroundColor(.revTextSecondary)
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")

@@ -17,7 +17,7 @@ struct TripCompletedOverlay: View {
             // Dimmed gradient background
             LinearGradient(
                 colors: [
-                    Color.revBrown.opacity(0.92),
+                    Color.revBrownDark.opacity(0.92),
                     Color.revRed.opacity(0.88),
                 ],
                 startPoint: .topLeading,

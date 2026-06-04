@@ -49,7 +49,7 @@ struct BrandButton: View {
     private var foregroundColor: Color {
         switch style {
         case .primary, .destructive: return .white
-        case .secondary, .ghost: return .revBrown
+        case .secondary, .ghost: return .revText
         }
     }
 

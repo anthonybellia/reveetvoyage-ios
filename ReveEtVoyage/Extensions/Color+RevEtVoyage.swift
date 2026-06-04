@@ -2,8 +2,13 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    // Brand palette
-    static let revBrown = Color(red: 0.121, green: 0.063, blue: 0.031)   // #1F1008
+    // Brand palette — revBrown adapts to dark mode for text readability
+    static let revBrown = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.96, green: 0.90, blue: 0.85, alpha: 1.0)
+            : UIColor(red: 0.121, green: 0.063, blue: 0.031, alpha: 1.0)
+    })
+    static let revBrownDark = Color(red: 0.121, green: 0.063, blue: 0.031)
     static let revOrange = Color(red: 0.941, green: 0.616, blue: 0.420)  // #f09d6b
     static let revYellow = Color(red: 0.949, green: 0.776, blue: 0.114)  // #f2c61d
     static let revRed = Color(red: 0.894, green: 0.373, blue: 0.376)     // #e45f60

@@ -101,9 +101,16 @@ struct StyledHtmlView: UIViewRepresentable {
             --rev-text-secondary: #7d7d7d;
           }
           @media (prefers-color-scheme: dark) {
-            body { background: #000; color: #f5f5f5; }
-            h1, h2, h3 { color: #ffd9b8; }
+            :root { --rev-brown: #f5e6d9; --rev-text-secondary: #b0b0b0; }
+            body { background: #000; color: #e8e8e8; }
+            h1 {
+              background: linear-gradient(90deg, #ffd9b8, #e45f60);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+            }
+            h2, h3 { color: #ffd9b8; }
             a { color: #ffb89e; }
+            strong { color: #f5f5f5; }
           }
           * { box-sizing: border-box; }
           body {

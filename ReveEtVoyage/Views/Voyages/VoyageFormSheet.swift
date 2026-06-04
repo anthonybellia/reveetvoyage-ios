@@ -187,7 +187,7 @@ struct VoyageFormSheet: View {
                     if description.isEmpty {
                         Text("Description visible par le client…")
                             .font(.system(size: 14))
-                            .foregroundColor(.revTextSecondary.opacity(0.55))
+                            .foregroundColor(.revTextSecondary)
                             .padding(.top, 8)
                             .padding(.leading, 4)
                             .allowsHitTesting(false)
@@ -200,7 +200,7 @@ struct VoyageFormSheet: View {
                     if notesAdmin.isEmpty {
                         Text("Notes internes (admin)…")
                             .font(.system(size: 14))
-                            .foregroundColor(.revTextSecondary.opacity(0.55))
+                            .foregroundColor(.revTextSecondary)
                             .padding(.top, 8)
                             .padding(.leading, 4)
                             .allowsHitTesting(false)

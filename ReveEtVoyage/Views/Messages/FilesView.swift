@@ -172,7 +172,7 @@ private struct FileRowCard: View {
                     }
                 }
                 Spacer()
-                Image(systemName: "arrow.up.right.square").foregroundColor(.revTextSecondary.opacity(0.5))
+                Image(systemName: "arrow.up.right.square").foregroundColor(.revTextSecondary)
             }
             .padding(12)
             .background(Color.revCardBackground)

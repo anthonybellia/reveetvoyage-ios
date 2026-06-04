@@ -72,7 +72,7 @@ struct PassengerFormView: View {
                             }
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.revTextSecondary.opacity(0.5))
+                                .foregroundColor(.revTextSecondary)
                         }
                     }
                     .buttonStyle(.plain)

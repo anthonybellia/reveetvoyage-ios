@@ -62,7 +62,7 @@ struct PreviewModeBanner: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(Color.revBrown))
+                    .background(Capsule().fill(Color.revBrownDark))
             }
             .buttonStyle(.plain)
         }

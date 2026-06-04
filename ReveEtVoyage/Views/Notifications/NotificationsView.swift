@@ -80,7 +80,7 @@ struct NotificationsView: View {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.revTextSecondary.opacity(0.5))
+                    .foregroundColor(.revTextSecondary)
             }
         }
     }

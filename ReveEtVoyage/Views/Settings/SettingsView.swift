@@ -171,7 +171,7 @@ struct SettingsView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Capsule().fill(preview ? Color.revBrown : Color.revOrange))
+                        .background(Capsule().fill(preview ? Color.revBrownDark : Color.revOrange))
                 }
                 .padding(14)
             }
@@ -499,7 +499,7 @@ struct SettingsView: View {
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.revTextSecondary.opacity(0.5))
+                .foregroundColor(.revTextSecondary)
         }
         .padding(14)
     }

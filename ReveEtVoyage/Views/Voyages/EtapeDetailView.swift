@@ -233,7 +233,7 @@ struct EtapeDetailView: View {
             }
             .foregroundColor(.white)
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Capsule().fill(Color.revBrown.opacity(0.8)))
+            .background(Capsule().fill(Color.revBrownDark.opacity(0.8)))
             .padding(.top, 18).padding(.leading, 16)
         }
     }
@@ -780,7 +780,7 @@ struct EtapeDetailView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .background(Capsule().fill(Color.revBrown.opacity(0.9)))
+            .background(Capsule().fill(Color.revBrownDark.opacity(0.9)))
             .padding(.bottom, 40)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -1025,7 +1025,7 @@ private struct PDFThumbnailInline: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
                             .padding(6)
-                            .background(Circle().fill(Color.revBrown.opacity(0.75)))
+                            .background(Circle().fill(Color.revBrownDark.opacity(0.75)))
                             .padding(8)
                     }
             } else if didFail {
