@@ -498,7 +498,7 @@ struct VoyageDetailView: View {
                                     // Visuel : photo de couverture de l'étape si
                                     // disponible, sinon icône du type d'étape.
                                     if let cover = ref.etape.coverImage,
-                                       let coverURL = etapeCoverURL(cover) {
+                                       let coverURL = voyageTicketURL(cover) {
                                         AsyncImage(url: coverURL) { phase in
                                             switch phase {
                                             case .success(let image):
