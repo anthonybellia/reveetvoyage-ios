@@ -734,33 +734,42 @@ struct VoyageDetailView: View {
                 }
             } else {
                 ForEach(Array(viewModel.etapes.enumerated()), id: \.element.id) { index, etape in
-                    NavigationLink(value: EtapeNavValue(etape: etape)) {
-                        EtapeRow(
-                            etape: etape,
-                            isFirst: index == 0,
-                            isLast: index == viewModel.etapes.count - 1,
-                            isToggling: viewModel.togglingEtapeIds.contains(etape.id),
-                            onToggle: { showToggleConfirmFor(etape) },
-                            onOpenInfos: { infosEtape = currentEtape(etape) }
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        if isAdmin, let voyage = viewModel.voyage {
-                            Button {
-                                adminSheet = AdminSheetItem(
-                                    id: "edit-\(etape.id)-\(UUID())",
-                                    mode: .edit(voyageId: voyage.id, etape: etape)
-                                )
-                            } label: {
-                                Label("Modifier", systemImage: "pencil")
+                    VStack(spacing: 0) {
+                        NavigationLink(value: EtapeNavValue(etape: etape)) {
+                            EtapeRow(
+                                etape: etape,
+                                isFirst: index == 0,
+                                isLast: index == viewModel.etapes.count - 1,
+                                isToggling: viewModel.togglingEtapeIds.contains(etape.id),
+                                onToggle: { showToggleConfirmFor(etape) },
+                                onOpenInfos: { infosEtape = currentEtape(etape) }
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            if isAdmin, let voyage = viewModel.voyage {
+                                Button {
+                                    adminSheet = AdminSheetItem(
+                                        id: "edit-\(etape.id)-\(UUID())",
+                                        mode: .edit(voyageId: voyage.id, etape: etape)
+                                    )
+                                } label: {
+                                    Label("Modifier", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    pendingDeleteEtape = etape
+                                    showDeleteConfirm = true
+                                } label: {
+                                    Label("Supprimer", systemImage: "trash")
+                                }
                             }
-                            Button(role: .destructive) {
-                                pendingDeleteEtape = etape
-                                showDeleteConfirm = true
-                            } label: {
-                                Label("Supprimer", systemImage: "trash")
-                            }
+                        }
+
+                        // Trajet inter-étapes (N → N+1) : affiché entre deux
+                        // étapes consécutives, comme sur le web.
+                        if index < viewModel.etapes.count - 1,
+                           let cn = timelineConnector(for: etape) {
+                            TimelineConnectorLabel(icon: cn.icon, text: cn.text)
                         }
                     }
                 }
@@ -771,6 +780,35 @@ struct VoyageDetailView: View {
     private func showToggleConfirmFor(_ etape: VoyageEtape) {
         pendingToggleEtape = etape
         showToggleConfirm = true
+    }
+
+    /// Construit le label de trajet inter-étapes (mode de transport +
+    /// distance · durée) à partir des champs connector_* de l'étape.
+    /// Renvoie nil si aucune info de trajet n'est disponible.
+    private func timelineConnector(for etape: VoyageEtape) -> (icon: String, text: String)? {
+        let mode = etape.connector_mode?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let duration = etape.connector_duration?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let distanceRaw = etape.connector_distance?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        // L'API peut renvoyer "1061 km · " avec un séparateur résiduel.
+        let distance = distanceRaw.trimmingCharacters(in: CharacterSet(charactersIn: " ·"))
+        guard !mode.isEmpty || !duration.isEmpty || !distance.isEmpty else { return nil }
+
+        let map: (icon: String, label: String)
+        switch mode.lowercased() {
+        case "car": map = ("car.fill", "Voiture")
+        case "train": map = ("tram.fill", "Train")
+        case "plane": map = ("airplane", "Avion")
+        case "bus": map = ("bus.fill", "Bus")
+        case "navette": map = ("bus.fill", "Navette")
+        case "taxi": map = ("car.fill", "Taxi")
+        case "walk": map = ("figure.walk", "À pied")
+        default: map = ("arrow.right.circle.fill", "Trajet")
+        }
+
+        var parts: [String] = [map.label]
+        if !distance.isEmpty { parts.append(distance) }
+        if !duration.isEmpty { parts.append(duration) }
+        return (icon: map.icon, text: parts.joined(separator: " · "))
     }
 
     private func maybeShowTripCompletedOverlay() {
@@ -1257,6 +1295,29 @@ struct EtapeRow: View {
             }
         }
         .opacity(etape.is_completed ? 0.75 : 1)
+    }
+}
+
+/// Petit label de trajet inter-étapes affiché dans la timeline, entre
+/// deux étapes consécutives (icône transport + mode · distance · durée).
+struct TimelineConnectorLabel: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundColor(.revTextSecondary)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .background(Capsule().fill(Color.revOrange.opacity(0.10)))
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 4)
     }
 }
 
