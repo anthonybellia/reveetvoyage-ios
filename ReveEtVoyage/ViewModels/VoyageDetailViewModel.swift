@@ -1,5 +1,10 @@
 import Foundation
 
+private func resolveAbsoluteURL(_ path: String, base: String) -> URL? {
+    if path.hasPrefix("http") { return URL(string: path) }
+    return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
+}
+
 @MainActor
 final class VoyageDetailViewModel: ObservableObject {
     @Published var voyage: Voyage?
@@ -92,25 +97,20 @@ final class VoyageDetailViewModel: ObservableObject {
 
             for etape in etapes {
                 if let cover = etape.coverImage {
-                    if let url = Self.absoluteURL(cover, base: base) { urls.append(url) }
+                    if let url = resolveAbsoluteURL(cover, base: base) { urls.append(url) }
                 }
                 for img in etape.allImages {
-                    if let url = Self.absoluteURL(img, base: base) { urls.append(url) }
+                    if let url = resolveAbsoluteURL(img, base: base) { urls.append(url) }
                 }
                 if let tickets = etape.tickets {
                     for ticket in tickets where ticket.is_image {
-                        if let url = Self.absoluteURL(ticket.url, base: base) { urls.append(url) }
+                        if let url = resolveAbsoluteURL(ticket.url, base: base) { urls.append(url) }
                     }
                 }
             }
 
             await ImageCacheService.shared.preload(urls: urls)
         }
-    }
-
-    private static func absoluteURL(_ path: String, base: String) -> URL? {
-        if path.hasPrefix("http") { return URL(string: path) }
-        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
     }
 
     // MARK: - Admin CRUD
@@ -168,6 +168,8 @@ extension VoyageEtape {
             tickets: tickets,
             icon: icon,
             color: color,
+            codes: codes,
+            linked_app: linked_app,
             is_completed: !is_completed,
             completed_at: is_completed ? nil : ISO8601DateFormatter().string(from: Date())
         )
