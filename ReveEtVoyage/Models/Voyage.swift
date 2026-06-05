@@ -5,6 +5,9 @@ struct Voyage: Codable, Identifiable {
     let reference: String
     let titre: String
     let destination: String
+    let cover_image: String?
+    let cover_thumb: String?
+    let cover_micro: String?
     let date_depart: String?
     let date_retour: String?
     let montant_total: Double
@@ -25,7 +28,8 @@ struct Voyage: Codable, Identifiable {
     let updated_at: String
 
     enum CodingKeys: String, CodingKey {
-        case id, reference, titre, destination, statut, token, etapes, payments
+        case id, reference, titre, destination, cover_image, cover_thumb, cover_micro
+        case statut, token, etapes, payments
         case date_depart, date_retour, montant_total, montant_acompte, montant_paye
         case acompte_type, acompte_valeur, statut_label, description, participants
         case owner, created_at, updated_at

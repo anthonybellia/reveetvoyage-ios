@@ -344,55 +344,96 @@ struct VoyageCard: View {
         return start
     }
 
+    private var coverURL: URL? {
+        // Prefer thumb for list performance
+        let raw = voyage.cover_thumb ?? voyage.cover_image
+        guard let raw, !raw.isEmpty else { return nil }
+        return URL(string: raw)
+    }
+
     var body: some View {
-        GlassCard(padding: 16) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [.revYellow.opacity(0.6), .revOrange.opacity(0.6)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 50, height: 50)
-                    Image(systemName: "airplane")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                        .rotationEffect(.degrees(-30))
+        ZStack(alignment: .bottomLeading) {
+            // Background: cover image or gradient fallback
+            if let url = coverURL {
+                CachedAsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .empty, .failure:
+                        fallbackGradient
+                    }
                 }
+            } else {
+                fallbackGradient
+            }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(voyage.titre)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundColor(.revText)
-                        .lineLimit(1)
+            // Dark gradient overlay for text readability
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.3), .black.opacity(0.7)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
-                    HStack(spacing: 6) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 11))
-                        Text(voyage.destination)
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundColor(.revTextSecondary)
-
-                    if let dateRange {
-                        Text(dateRange)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.revOrange)
-                    }
-
-                    if let owner = voyage.owner {
-                        OwnerLabel(owner: owner)
-                    }
+            // Content overlay
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Spacer()
+                    StatusBadge.voyageStatut(voyage.statut, label: voyage.statut_label)
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 6) {
-                    StatusBadge.voyageStatut(voyage.statut, label: voyage.statut_label)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.revTextSecondary)
+                Text(voyage.titre)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 12))
+                    Text(voyage.destination)
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundColor(.white.opacity(0.9))
+                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+
+                if let dateRange {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11))
+                        Text(dateRange)
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(.white.opacity(0.85))
+                    .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+                }
+
+                if let owner = voyage.owner {
+                    OwnerLabel(owner: owner)
                 }
             }
+            .padding(16)
         }
+        .frame(height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
+    }
+
+    private var fallbackGradient: some View {
+        LinearGradient(
+            colors: [.revYellow, .revOrange],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(
+            Image(systemName: "airplane")
+                .font(.system(size: 60, weight: .light))
+                .foregroundColor(.white.opacity(0.2))
+                .rotationEffect(.degrees(-15))
+        )
     }
 }
 
