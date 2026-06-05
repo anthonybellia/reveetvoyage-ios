@@ -213,6 +213,7 @@ struct EtapeDetailView: View {
     private func mapHero(_ coord: CLLocationCoordinate2D) -> some View {
         ZStack(alignment: .topLeading) {
             Map(coordinateRegion: $region,
+                showsUserLocation: true,
                 annotationItems: [Pin(coordinate: coord)]) { p in
                 MapAnnotation(coordinate: p.coordinate) {
                     ZStack {

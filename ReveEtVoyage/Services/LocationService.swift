@@ -32,17 +32,25 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     /// Called from AuthService once the user is authenticated.
     /// Triggers the permission prompt on first call.
+    @Published private(set) var isTracking = false
+
     func startIfPermitted() {
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.requestLocation()
+            manager.startUpdatingLocation()
+            isTracking = true
         case .denied, .restricted:
             break
         @unknown default:
             break
         }
+    }
+
+    func stopTracking() {
+        manager.stopUpdatingLocation()
+        isTracking = false
     }
 
     @objc private func handleForeground() {
@@ -60,7 +68,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     nonisolated func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         if status == .authorizedWhenInUse || status == .authorizedAlways {
-            Task { @MainActor in manager.requestLocation() }
+            Task { @MainActor in
+                manager.startUpdatingLocation()
+                self.isTracking = true
+            }
         }
     }
 
