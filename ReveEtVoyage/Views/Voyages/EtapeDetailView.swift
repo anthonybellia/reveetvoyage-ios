@@ -71,6 +71,16 @@ struct EtapeDetailView: View {
                         .padding(.horizontal, 18)
                 }
 
+                if etape.hasCodes {
+                    codesCard
+                        .padding(.horizontal, 18)
+                }
+
+                if etape.hasLinkedApp {
+                    linkedAppCard
+                        .padding(.horizontal, 18)
+                }
+
                 if etape.hasAttachments {
                     attachmentsSection
                         .padding(.horizontal, 18)
@@ -417,6 +427,133 @@ struct EtapeDetailView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionTitle(title: "Notes", systemImage: "note.text")
                 HTMLText(html: html)
+            }
+        }
+    }
+
+    // MARK: - Codes d'accès
+
+    private var codesCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionTitle(title: "Codes d'acces", systemImage: "key.fill")
+                ForEach(etape.codes ?? []) { code in
+                    HStack(spacing: 8) {
+                        Text(code.label)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.revTextSecondary)
+                            .frame(width: 100, alignment: .leading)
+                        Text(code.value)
+                            .font(.system(size: 15, weight: .bold, design: .monospaced))
+                            .foregroundColor(.revText)
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button {
+                            UIPasteboard.general.string = code.value
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 12))
+                                .foregroundColor(.revOrange)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 10)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.revOrange.opacity(0.06)))
+                }
+            }
+        }
+    }
+
+    // MARK: - App liée
+
+    @ViewBuilder
+    private var linkedAppCard: some View {
+        if let app = etape.linked_app {
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(title: "App recommandee", systemImage: "iphone.badge.play")
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "app.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.name)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.revText)
+                            if let notes = app.notes, !notes.isEmpty {
+                                Text(notes)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.revTextSecondary)
+                                    .lineLimit(3)
+                            }
+                        }
+                        Spacer()
+                    }
+
+                    HStack(spacing: 10) {
+                        if let appStore = app.app_store_url, let url = URL(string: appStore) {
+                            Link(destination: url) {
+                                Label("App Store", systemImage: "apple.logo")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(Capsule().fill(Color.blue))
+                            }
+                        }
+                        if let playStore = app.play_store_url, let url = URL(string: playStore) {
+                            Link(destination: url) {
+                                Label("Play Store", systemImage: "play.fill")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(Capsule().fill(Color.green))
+                            }
+                        }
+                        if let website = app.website_url, let url = URL(string: website) {
+                            Link(destination: url) {
+                                Label("Site web", systemImage: "safari")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(Capsule().fill(Color.orange))
+                            }
+                        }
+                    }
+
+                    if app.hasCredentials {
+                        Divider()
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Identifiants")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.revTextSecondary)
+                                .textCase(.uppercase)
+                            ForEach(app.credentials ?? []) { cred in
+                                HStack(spacing: 8) {
+                                    Text(cred.label)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.revTextSecondary)
+                                        .frame(width: 110, alignment: .leading)
+                                    Text(cred.value)
+                                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.revText)
+                                        .textSelection(.enabled)
+                                    Spacer()
+                                    Button {
+                                        UIPasteboard.general.string = cred.value
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.green)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 10)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.06)))
+                            }
+                        }
+                    }
+                }
             }
         }
     }

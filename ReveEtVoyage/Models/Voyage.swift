@@ -64,9 +64,13 @@ struct VoyageEtape: Codable, Identifiable {
     let tickets: [EtapeTicket]?
     let icon: String?
     let color: String?
+    let codes: [EtapeCode]?
+    let linked_app: LinkedApp?
     let is_completed: Bool
     let completed_at: String?
 
+    var hasCodes: Bool { !(codes ?? []).isEmpty }
+    var hasLinkedApp: Bool { linked_app != nil }
     var hasCoordinates: Bool { latitude != nil && longitude != nil }
     var hasAttachments: Bool {
         fichier != nil || image != nil || !(images ?? []).isEmpty || hasTickets
@@ -118,7 +122,7 @@ struct VoyageEtape: Codable, Identifiable {
         case date, heure, heure_retour, lieu, lieu_retour, adresse
         case latitude, longitude, cout, cout_note
         case connector_mode, connector_duration, connector_distance, details
-        case contenu_html, image, cover, fichier, images, tickets, icon, color, is_completed, completed_at
+        case contenu_html, image, cover, fichier, images, tickets, icon, color, codes, linked_app, is_completed, completed_at
     }
 }
 
@@ -139,6 +143,30 @@ struct EtapeTicket: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case url, name, ext, is_pdf, is_image, participant_id, participant_name
     }
+}
+
+struct EtapeCode: Codable, Identifiable {
+    let label: String
+    let value: String
+    var id: String { "\(label):\(value)" }
+}
+
+struct LinkedApp: Codable {
+    let name: String
+    let icon_url: String?
+    let app_store_url: String?
+    let play_store_url: String?
+    let website_url: String?
+    let notes: String?
+    let credentials: [LinkedAppCredential]?
+
+    var hasCredentials: Bool { !(credentials ?? []).isEmpty }
+}
+
+struct LinkedAppCredential: Codable, Identifiable {
+    let label: String
+    let value: String
+    var id: String { "\(label):\(value)" }
 }
 
 /// Description d'un type d'étape : SF Symbol + libellé français.
