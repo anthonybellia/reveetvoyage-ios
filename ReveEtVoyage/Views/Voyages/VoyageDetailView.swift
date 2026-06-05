@@ -933,6 +933,7 @@ struct VoyageHero: View {
         VStack(spacing: 12) {
             if let coord = coordinate {
                 Map(coordinateRegion: $region,
+                    interactionModes: [],
                     showsUserLocation: true,
                     annotationItems: [HeroPin(coordinate: coord)]) { pin in
                     MapAnnotation(coordinate: pin.coordinate) {
@@ -1450,8 +1451,8 @@ struct EtapeMiniMap: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Map(coordinateRegion: .constant(region),
-                showsUserLocation: true,
                 interactionModes: [],
+                showsUserLocation: true,
                 annotationItems: [MapPin(coordinate: coordinate)]) { pin in
                 MapAnnotation(coordinate: pin.coordinate) {
                     ZStack {
