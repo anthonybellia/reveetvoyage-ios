@@ -51,6 +51,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func stopTracking() {
         manager.stopUpdatingLocation()
         isTracking = false
+        lastKnownLocation = nil
     }
 
     @objc private func handleForeground() {
@@ -69,6 +70,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     nonisolated func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         if status == .authorizedWhenInUse || status == .authorizedAlways {
             Task { @MainActor in
+                guard apiClient.isAuthenticated() else { return }
                 manager.startUpdatingLocation()
                 self.isTracking = true
             }
@@ -91,6 +93,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     private func sendLocation(_ loc: CLLocation) async {
         guard apiClient.isAuthenticated() else { return }
+        if let last = lastPingedAt, Date().timeIntervalSince(last) < minPingInterval { return }
 
         let body = LocationPingRequest(
             latitude:  loc.coordinate.latitude,

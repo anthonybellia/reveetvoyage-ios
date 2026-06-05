@@ -283,6 +283,7 @@ final class AuthService: ObservableObject {
         OfflineCache.shared.clearAll()
         // Idem pour les écritures en file : ne pas les rejouer sur un autre compte.
         OfflineOutbox.shared.clearAll()
+        LocationService.shared.stopTracking()
         currentUser = nil
         isAuthenticated = false
         errorMessage = nil
