@@ -98,13 +98,14 @@ struct FilesView: View {
             ForEach(items) { msg in
                 if let urlString = msg.attachment_url, let url = URL(string: urlString) {
                     NavigationLink {
-                        FullImageView(url: url, onClose: {})
+                        ZoomableImageView(url: url, onClose: {})
                             .navigationBarHidden(true)
                     } label: {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image {
+                        CachedAsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
                                 image.resizable().aspectRatio(1, contentMode: .fill)
-                            } else {
+                            default:
                                 Color.revCardBackground
                             }
                         }

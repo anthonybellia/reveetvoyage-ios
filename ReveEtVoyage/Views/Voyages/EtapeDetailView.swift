@@ -629,7 +629,7 @@ struct EtapeDetailView: View {
 
     /// Aperçu image inline d'un billet (sous la ligne). Tap → plein écran.
     private func inlineImagePreview(_ url: URL) -> some View {
-        AsyncImage(url: url) { phase in
+        CachedAsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
                 image
@@ -655,7 +655,7 @@ struct EtapeDetailView: View {
                         .font(.system(size: 28))
                         .foregroundColor(.revTextSecondary)
                 }
-            default:
+            case .empty:
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.revCardBackground)
@@ -677,7 +677,7 @@ struct EtapeDetailView: View {
     }
 
     private func imageThumb(_ url: URL) -> some View {
-        AsyncImage(url: url) { phase in
+        CachedAsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
                 image
@@ -702,7 +702,7 @@ struct EtapeDetailView: View {
                         .font(.system(size: 24))
                         .foregroundColor(.revTextSecondary)
                 }
-            default:
+            case .empty:
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.revCardBackground)
@@ -716,56 +716,8 @@ struct EtapeDetailView: View {
     }
 
     private func fullScreenImageOverlay(_ url: URL) -> some View {
-        ZStack {
-            Color.black.opacity(0.92)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        fullScreenImageURL = nil
-                    }
-                }
-
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button {
-                        saveImageToPhotos(from: url)
-                    } label: {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    .padding(.trailing, 8)
-
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            fullScreenImageURL = nil
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-
-                Spacer()
-
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .padding(.horizontal, 12)
-                    default:
-                        ProgressView().tint(.white)
-                    }
-                }
-
-                Spacer()
-            }
+        ZoomableImageView(url: url) {
+            withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = nil }
         }
         .transition(.opacity)
     }

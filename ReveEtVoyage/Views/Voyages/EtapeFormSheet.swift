@@ -247,7 +247,7 @@ struct EtapeFormSheet: View {
             // MARK: Couverture
             Section("Image de couverture") {
                 if let cover = etape.coverImage, let url = URL(string: cover) {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let img):
                             img.resizable().scaledToFill()

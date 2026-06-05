@@ -499,7 +499,7 @@ struct VoyageDetailView: View {
                                     // disponible, sinon icône du type d'étape.
                                     if let cover = ref.etape.coverImage,
                                        let coverURL = voyageTicketURL(cover) {
-                                        AsyncImage(url: coverURL) { phase in
+                                        CachedAsyncImage(url: coverURL) { phase in
                                             switch phase {
                                             case .success(let image):
                                                 image
@@ -609,38 +609,10 @@ struct VoyageDetailView: View {
         }
     }
 
-    /// Overlay plein écran d'un billet image (carte récap), fermé au tap.
+    /// Overlay plein écran d'un billet image (carte récap), avec pinch-to-zoom.
     private func recapImageOverlay(_ url: URL) -> some View {
-        ZStack {
-            Color.black.opacity(0.92)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.25)) { recapImageURL = nil }
-                }
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { recapImageURL = nil }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                Spacer()
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fit).padding(.horizontal, 12)
-                    default:
-                        ProgressView().tint(.white)
-                    }
-                }
-                Spacer()
-            }
+        ZoomableImageView(url: url) {
+            withAnimation(.easeInOut(duration: 0.25)) { recapImageURL = nil }
         }
         .transition(.opacity)
     }
@@ -1194,38 +1166,10 @@ struct EtapeRow: View {
         }
     }
 
-    /// Overlay plein écran d'un billet image, fermé au tap.
+    /// Overlay plein écran d'un billet image, avec pinch-to-zoom.
     private func ticketImageOverlay(_ url: URL) -> some View {
-        ZStack {
-            Color.black.opacity(0.92)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = nil }
-                }
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = nil }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                Spacer()
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fit).padding(.horizontal, 12)
-                    default:
-                        ProgressView().tint(.white)
-                    }
-                }
-                Spacer()
-            }
+        ZoomableImageView(url: url) {
+            withAnimation(.easeInOut(duration: 0.25)) { fullScreenImageURL = nil }
         }
         .transition(.opacity)
     }
@@ -1408,7 +1352,7 @@ struct EtapeCoverThumb: View {
     let url: URL
 
     var body: some View {
-        AsyncImage(url: url) { phase in
+        CachedAsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
                 image
@@ -1421,7 +1365,7 @@ struct EtapeCoverThumb: View {
                         .font(.system(size: 22))
                         .foregroundColor(.revTextSecondary)
                 }
-            default:
+            case .empty:
                 ZStack {
                     Color.revCardBackground
                     ProgressView().tint(.revOrange)

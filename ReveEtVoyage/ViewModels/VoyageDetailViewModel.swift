@@ -33,6 +33,8 @@ final class VoyageDetailViewModel: ObservableObject {
             } else {
                 await NotificationManager.shared.cancelVoyage(v.id)
             }
+
+            preloadImages(etapes: v.etapes ?? [])
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -80,6 +82,36 @@ final class VoyageDetailViewModel: ObservableObject {
 
     var completedCount: Int { etapes.filter { $0.is_completed }.count }
     var totalCount: Int { etapes.count }
+
+    // MARK: - Image Preloading
+
+    private func preloadImages(etapes: [VoyageEtape]) {
+        Task.detached(priority: .utility) {
+            var urls: [URL] = []
+            let base = APIConfig.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+
+            for etape in etapes {
+                if let cover = etape.coverImage {
+                    if let url = Self.absoluteURL(cover, base: base) { urls.append(url) }
+                }
+                for img in etape.allImages {
+                    if let url = Self.absoluteURL(img, base: base) { urls.append(url) }
+                }
+                if let tickets = etape.tickets {
+                    for ticket in tickets where ticket.is_image {
+                        if let url = Self.absoluteURL(ticket.url, base: base) { urls.append(url) }
+                    }
+                }
+            }
+
+            await ImageCacheService.shared.preload(urls: urls)
+        }
+    }
+
+    private static func absoluteURL(_ path: String, base: String) -> URL? {
+        if path.hasPrefix("http") { return URL(string: path) }
+        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
+    }
 
     // MARK: - Admin CRUD
 

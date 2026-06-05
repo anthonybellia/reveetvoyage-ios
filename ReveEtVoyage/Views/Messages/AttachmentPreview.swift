@@ -22,7 +22,7 @@ struct AttachmentPreview: View {
     }
 
     private func imagePreview(url: URL) -> some View {
-        AsyncImage(url: url) { phase in
+        CachedAsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
                 image.resizable().aspectRatio(contentMode: .fill)
@@ -31,12 +31,12 @@ struct AttachmentPreview: View {
                     .onTapGesture { showFullImage = true }
             case .failure:
                 placeholder(icon: "exclamationmark.triangle.fill", text: "Image indisponible")
-            default:
+            case .empty:
                 placeholder(icon: "photo", text: "Chargement…")
             }
         }
         .fullScreenCover(isPresented: $showFullImage) {
-            FullImageView(url: url) { showFullImage = false }
+            ZoomableImageView(url: url) { showFullImage = false }
         }
     }
 
