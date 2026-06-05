@@ -172,6 +172,14 @@ struct ExpensesView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.revTextSecondary)
                 }
+
+                if viewModel.participants.count > 1 && viewModel.totalSpent > 0 {
+                    let perPerson = viewModel.totalSpent / Double(viewModel.participants.count)
+                    Text("\(formatPrice(perPerson)) par personne")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(.revBrown)
+                        .padding(.top, 4)
+                }
             }
             .frame(maxWidth: .infinity)
         }
