@@ -909,11 +909,25 @@ struct VoyageDetailView: View {
         }
     }
 
+    /// Étape sur laquelle centrer la carte « hero ».
+    /// Suit la progression du voyage en temps réel : on cible la première étape
+    /// NON terminée qui possède des coordonnées (= là où l'on en est). Une fois
+    /// une étape cochée (ex. le vol de départ), la carte avance d'elle-même vers
+    /// la suivante. Si tout est terminé, on retombe sur la dernière étape géolocalisée.
     private func firstGeoEtape() -> VoyageEtape? {
-        let etapes = viewModel.voyage?.etapes ?? []
-        if let withCoords = etapes.first(where: { $0.hasCoordinates }) {
-            return withCoords
+        // Source VIVANTE : `viewModel.etapes` est mis à jour de façon optimiste à
+        // chaque cochage (contrairement à `voyage.etapes` qui reste figé jusqu'au
+        // prochain load). C'est ce qui permet à la carte d'avancer immédiatement.
+        let etapes = viewModel.etapes
+        // 1. Première étape non terminée avec coordonnées (progression « temps réel »).
+        if let current = etapes.first(where: { !$0.is_completed && $0.hasCoordinates }) {
+            return current
         }
+        // 2. Tout est coché : on montre la dernière étape géolocalisée atteinte.
+        if let last = etapes.last(where: { $0.hasCoordinates }) {
+            return last
+        }
+        // 3. Aucune coordonnée : on garde une étape adressable pour le géocodage.
         return etapes.first { ($0.adresse?.isEmpty == false) || ($0.lieu?.isEmpty == false) }
     }
 }
