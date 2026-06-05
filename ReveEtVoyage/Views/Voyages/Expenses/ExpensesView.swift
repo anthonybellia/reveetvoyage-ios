@@ -398,9 +398,14 @@ private struct ExpenseRow: View {
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundColor(.revOrange)
                     if let date = expense.spentAtDate {
-                        Text(date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "fr_BE"))))
-                            .font(.system(size: 10))
-                            .foregroundColor(.revTextSecondary)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "fr_BE"))))
+                                .font(.system(size: 10))
+                                .foregroundColor(.revTextSecondary)
+                            Text(date.formatted(.dateTime.hour().minute().locale(Locale(identifier: "fr_BE"))))
+                                .font(.system(size: 10))
+                                .foregroundColor(.revTextSecondary)
+                        }
                     }
                 }
             }
