@@ -365,6 +365,8 @@ struct VoyageCard: View {
                         fallbackGradient
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
             } else {
                 fallbackGradient
             }
@@ -416,7 +418,9 @@ struct VoyageCard: View {
                 }
             }
             .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 180)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
