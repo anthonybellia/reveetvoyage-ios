@@ -352,7 +352,7 @@ struct VoyageCard: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack {
             // Background: cover image or gradient fallback
             if let url = coverURL {
                 CachedAsyncImage(url: url) { phase in
@@ -373,52 +373,57 @@ struct VoyageCard: View {
 
             // Dark gradient overlay for text readability
             LinearGradient(
-                colors: [.clear, .black.opacity(0.3), .black.opacity(0.7)],
+                colors: [.clear, .clear, .black.opacity(0.4), .black.opacity(0.75)],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
-            // Content overlay
-            VStack(alignment: .leading, spacing: 6) {
+            // Badge top-right
+            VStack {
                 HStack {
                     Spacer()
                     StatusBadge.voyageStatut(voyage.statut, label: voyage.statut_label)
                 }
+                Spacer()
+            }
+            .padding(12)
 
+            // Text content bottom-left
+            VStack(alignment: .leading, spacing: 4) {
                 Spacer()
 
                 Text(voyage.titre)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                    .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
+                    .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 2)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Image(systemName: "mappin.circle.fill")
                         .font(.system(size: 12))
                     Text(voyage.destination)
                         .font(.system(size: 13, weight: .medium))
-                }
-                .foregroundColor(.white.opacity(0.9))
-                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
 
-                if let dateRange {
-                    HStack(spacing: 6) {
+                    if let dateRange {
+                        Text("·")
+                            .font(.system(size: 13, weight: .bold))
                         Image(systemName: "calendar")
                             .font(.system(size: 11))
                         Text(dateRange)
                             .font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundColor(.white.opacity(0.85))
-                    .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                 }
+                .foregroundColor(.white.opacity(0.9))
+                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
 
                 if let owner = voyage.owner {
                     OwnerLabel(owner: owner)
                 }
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+            .padding(.top, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 180)
